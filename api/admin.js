@@ -195,11 +195,12 @@ async function getTasks(res) {
 }
 
 async function saveTask(req, res) {
-  const { id, title, description, reward_amount, min_tier, icon, is_active, sort_order } = req.body;
+  const { id, title, description, reward_amount, min_tier, icon, is_active, sort_order, frequency } = req.body;
   if (!title || !reward_amount) return res.status(400).json({ error: 'Title and reward are required' });
   const payload = {
     title, description: description || null, reward_amount: Number(reward_amount),
     min_tier: min_tier || 'A0', icon: icon || 'fa-solid fa-star',
+    frequency: frequency || 'daily',
     is_active: is_active !== false, sort_order: Number(sort_order || 0)
   };
   const { error } = id
