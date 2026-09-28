@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Messages</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .msg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .msg-card.unread { border-color: rgba(0,224,138,.45); box-shadow: 0 0 18px rgba(0,224,138,.08); }
+    .msg-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .msg-title { font-weight: 800; font-size: .95rem; }
+    .msg-date { font-size: .72rem; color: var(--muted); }
+    .msg-body { color: var(--muted); font-size: .88rem; line-height: 1.55; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <div class="page">
+    <h1 class="page-title">Messages</h1>
+    <p class="page-sub">Announcements and updates from the APM team.</p>
+    <div id="msg-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
+  </div>
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+
+    const { data } = await supabase.from('messages').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50);
+    const msgs = data || [];
+
+    const box = document.getElementById('msg-list');
+    if (!msgs.length) {
+      box.innerHTML = '<div class="empty-state"><i class="fa-solid fa-envelope-open"></i>No messages yet</div>';
+    } else {
+      box.innerHTML = msgs.map(m => `
+        <div class="msg-card ${m.is_read ? '' : 'unread'}">
+          <div class="msg-head">
+            <span class="msg-title">${m.title} ${m.is_read ? '' : '<span class="badge badge-mint">new</span>'}</span>
+            <span class="msg-date">${new Date(m.created_at).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' })}</span>
+          </div>
+          <div class="msg-body">${m.body}</div>
+        </div>`).join('');
+      // Mark all as read
+      const unreadIds = msgs.filter(m => !m.is_read).map(m => m.id);
+      if (unreadIds.length) await supabase.from('messages').update({ is_read: true }).in('id', unreadIds);
+    }
+  </script>
+</body>
+</html>
