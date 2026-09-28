@@ -96,7 +96,7 @@
         <button class="btn btn-primary btn-sm" onclick="openTaskModal()"><i class="fa-solid fa-plus"></i> New Task</button>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Task</th><th>Reward</th><th>Min Tier</th><th>Claims (today/total)</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Task</th><th>Reward</th><th>Min Tier</th><th>Type</th><th>Claims (today/total)</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="tasks-table"></tbody>
       </table></div>
     </section>
@@ -209,6 +209,9 @@
       <div class="form-group"><label class="form-label">Min Tier</label>
         <select class="select" id="t-tier"><option>A0</option><option>A1</option><option>A2</option><option>A3</option><option>A4</option><option>A5</option><option>A6</option><option>A7</option></select>
       </div>
+      <div class="form-group"><label class="form-label">Frequency</label>
+        <select class="select" id="t-freq"><option value="daily">Daily (repeats)</option><option value="once">One-time</option></select>
+      </div>
       <div class="form-group"><label class="form-label">Sort Order</label><input type="number" class="input" id="t-sort" value="0"></div>
     </div>
     <div class="form-group"><label class="form-label">Icon</label>
@@ -254,7 +257,7 @@
     const api = async (action, opts = {}) => {
       const res = await fetch(`/api/admin?action=${action}`, {
         ...opts,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` , ...(opts.headers || {}) },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}`, ...(opts.headers || {}) }
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -395,6 +398,7 @@
           <td><i class="${t.icon}" style="color:var(--primary);margin-right:8px;"></i><b>${t.title}</b></td>
           <td class="gold" style="font-weight:800;">₦${Number(t.reward_amount).toLocaleString()}</td>
           <td><span class="badge badge-gray">${t.min_tier}</span></td>
+          <td>${t.frequency === 'once' ? '<span class="badge badge-amber">one-time</span>' : '<span class="badge badge-mint">daily</span>'}</td>
           <td>${t.claims.today} / ${t.claims.total}</td>
           <td>${t.is_active ? '<span class="badge badge-mint">Active</span>' : '<span class="badge badge-amber">Paused</span>'}</td>
           <td><div class="action-row">
@@ -402,7 +406,7 @@
             <button class="btn btn-ghost btn-sm" onclick="toggleTask('${t.id}', ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
             <button class="btn btn-danger btn-sm" onclick="delTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
-        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
+        </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
     }
     window.openTaskModal = (id) => {
       const t = tasksCache.find(x => x.id === id);
@@ -411,6 +415,7 @@
       document.getElementById('t-desc').value = t?.description || '';
       document.getElementById('t-reward').value = t?.reward_amount || '';
       document.getElementById('t-tier').value = t?.min_tier || 'A0';
+      document.getElementById('t-freq').value = t?.frequency || 'daily';
       document.getElementById('t-icon').value = t?.icon || 'fa-solid fa-hand-pointer';
       document.getElementById('t-sort').value = t?.sort_order || 0;
       document.getElementById('t-active').value = String(t?.is_active !== false);
@@ -424,6 +429,7 @@
           description: document.getElementById('t-desc').value,
           reward_amount: document.getElementById('t-reward').value,
           min_tier: document.getElementById('t-tier').value,
+          frequency: document.getElementById('t-freq').value,
           icon: document.getElementById('t-icon').value,
           sort_order: document.getElementById('t-sort').value,
           is_active: document.getElementById('t-active').value === 'true'
@@ -433,8 +439,10 @@
     };
     window.toggleTask = async (id, active) => {
       const t = tasksCache.find(x => x.id === id);
-      try { await api('save-task', { method: 'POST', body: JSON.stringify({ id, title: t.title, reward_amount: t.reward_amount, is_active: active }) }); showToast(active ? 'Task activated' : 'Task paused', 'success'); loadTasks(); }
-      catch (e) { showToast(e.message, 'error'); }
+      try {
+        await api('save-task', { method: 'POST', body: JSON.stringify({ id, title: t.title, reward_amount: t.reward_amount, frequency: t.frequency || 'daily', is_active: active }) });
+        showToast(active ? 'Task activated' : 'Task paused', 'success'); loadTasks();
+      } catch (e) { showToast(e.message, 'error'); }
     };
     window.delTask = async (id) => {
       if (!confirm('Delete this task permanently?')) return;
