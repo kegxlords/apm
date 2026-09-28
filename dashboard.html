@@ -150,8 +150,6 @@
         }).join('');
       }
     }
-
-    load();
     // ===== Telegram welcome popup (shows once per day) =====
 const todayStr = new Date().toISOString().slice(0, 10);
 const POPUP_KEY = 'apm_welcome_shown';
@@ -167,6 +165,8 @@ const dismissPopup = () => {
 };
 document.getElementById('tg-join-btn').addEventListener('click', dismissPopup);
 document.getElementById('tg-later-btn').addEventListener('click', dismissPopup);
+
+    load();
   </script>
   <div class="modal-overlay" id="welcome-modal">
   <div class="modal" style="text-align:center;">
