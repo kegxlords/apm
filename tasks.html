@@ -85,20 +85,25 @@
   <script src="/assets/js/notifications.js"></script>
   <script type="module" src="/assets/js/components.js"></script>
   <script type="module">
-    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
-    await requireAuth();
+  import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+  await requireAuth();
 
-    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+  const token = async () => (await supabase.auth.getSession()).data.session.access_token;
 
-    async function loadTasks() {
+  async function loadTasks() {
+    const list = document.getElementById('task-list');
+    list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tasks...</div>';
+    try {
       const res = await fetch('/api/tasks?action=getTasks', { headers: { Authorization: `Bearer ${await token()}` } });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.error, 'error'); return; }
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); }
+      catch { throw new Error(`Server returned invalid response (HTTP ${res.status}). Check deployment/env vars.`); }
+      if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
 
       document.getElementById('streak-num').textContent = `${data.streak} day${data.streak === 1 ? '' : 's'}`;
       document.getElementById('today-earned').textContent = `₦${Number(data.today_earned).toLocaleString()}`;
 
-      const list = document.getElementById('task-list');
       if (!data.tasks.length) {
         list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-inbox"></i>No tasks available right now. Check back soon!</div>';
         return;
@@ -106,13 +111,9 @@
 
       list.innerHTML = data.tasks.map(t => {
         let btn;
-        if (t.locked) {
-          btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> ${t.min_tier}</button>`;
-        } else if (t.claimed_today) {
-          btn = `<button class="claim-btn done" disabled><i class="fa-solid fa-check"></i> Claimed</button>`;
-        } else {
-          btn = `<button class="claim-btn" onclick="claimTask('${t.id}', this)">Claim ₦${t.reward_amount.toLocaleString()}</button>`;
-        }
+        if (t.locked) btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> ${t.min_tier}</button>`;
+        else if (t.claimed_today) btn = `<button class="claim-btn done" disabled><i class="fa-solid fa-check"></i> Claimed</button>`;
+        else btn = `<button class="claim-btn" onclick="claimTask('${t.id}', this)">Claim ₦${t.reward_amount.toLocaleString()}</button>`;
         return `
           <div class="task-card ${t.locked ? 'locked' : ''} ${t.claimed_today ? 'claimed' : ''}" id="card-${t.id}">
             <div class="task-icon"><i class="${t.icon}"></i></div>
@@ -123,66 +124,68 @@
             ${btn}
           </div>`;
       }).join('');
+    } catch (err) {
+      console.error('[TASKS] Load failed:', err);
+      list.innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          ${err.message}
+          <br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+        </div>`;
+      showToast(err.message, 'error');
     }
+  }
 
-    // Coin burst + floating reward text
-    function celebrate(x, y, amount) {
-      for (let i = 0; i < 12; i++) {
-        const c = document.createElement('span');
-        c.className = 'coin-particle';
-        c.innerHTML = '<i class="fa-solid fa-coins"></i>';
-        const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
-        const dist = 60 + Math.random() * 70;
-        c.style.left = x + 'px';
-        c.style.top = y + 'px';
-        c.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        c.style.setProperty('--dy', Math.sin(angle) * dist - 30 + 'px');
-        document.body.appendChild(c);
-        setTimeout(() => c.remove(), 850);
-      }
-      const pop = document.createElement('span');
-      pop.className = 'reward-pop';
-      pop.textContent = `+₦${amount.toLocaleString()}`;
-      pop.style.left = x - 30 + 'px';
-      pop.style.top = y - 20 + 'px';
-      document.body.appendChild(pop);
-      setTimeout(() => pop.remove(), 950);
+  function celebrate(x, y, amount) {
+    for (let i = 0; i < 12; i++) {
+      const c = document.createElement('span');
+      c.className = 'coin-particle';
+      c.innerHTML = '<i class="fa-solid fa-coins"></i>';
+      const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
+      const dist = 60 + Math.random() * 70;
+      c.style.left = x + 'px'; c.style.top = y + 'px';
+      c.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      c.style.setProperty('--dy', Math.sin(angle) * dist - 30 + 'px');
+      document.body.appendChild(c);
+      setTimeout(() => c.remove(), 850);
     }
+    const pop = document.createElement('span');
+    pop.className = 'reward-pop';
+    pop.textContent = `+₦${amount.toLocaleString()}`;
+    pop.style.left = x - 30 + 'px'; pop.style.top = y - 20 + 'px';
+    document.body.appendChild(pop);
+    setTimeout(() => pop.remove(), 950);
+  }
 
-    window.claimTask = async (taskId, btn) => {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-
+  window.claimTask = async (taskId, btn) => {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
+    try {
       const res = await fetch('/api/tasks?action=claimTask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
         body: JSON.stringify({ task_id: taskId })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
 
-      if (!res.ok) {
-        showToast(data.error, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Claim';
-        return;
-      }
-
-      // Celebrate at button position
       const rect = btn.getBoundingClientRect();
       celebrate(rect.left + rect.width / 2, rect.top + rect.height / 2, data.amount);
-
       btn.className = 'claim-btn done';
       btn.innerHTML = '<i class="fa-solid fa-check"></i> Claimed';
       document.getElementById(`card-${taskId}`)?.classList.add('claimed');
-
       showToast(`+₦${data.amount.toLocaleString()} claimed! 🔥 ${data.streak}-day streak`, 'gold');
-
-      // Refresh streak + today's earnings + header balance
       loadTasks();
       window.APMShell?.refresh();
-    };
+    } catch (err) {
+      console.error('[TASKS] Claim failed:', err);
+      showToast(err.message, 'error');
+      btn.disabled = false;
+      btn.textContent = 'Claim';
+    }
+  };
 
-    loadTasks();
+  loadTasks();
   </script>
 </body>
 </html>
