@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APM — Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="/assets/css/admin.css">
+  <meta name="theme-color" content="#0B1210">
+</head>
+<body style="padding-bottom:40px;">
+  <header class="admin-header">
+    <div class="apm-logo"><span class="coin">A</span> APM<span class="bolt">⚡</span> <span class="badge badge-gold">ADMIN</span></div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span class="admin-badge" id="admin-email">—</span>
+      <button class="btn btn-danger btn-sm" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+    </div>
+  </header>
+
+  <nav class="admin-tabs">
+    <button class="admin-tab active" onclick="showSection('dashboard', this)"><i class="fa-solid fa-chart-line"></i>Dashboard</button>
+    <button class="admin-tab" onclick="showSection('deposits', this)"><i class="fa-solid fa-arrow-down"></i>Deposits</button>
+    <button class="admin-tab" onclick="showSection('withdrawals', this)"><i class="fa-solid fa-arrow-up"></i>Withdrawals</button>
+    <button class="admin-tab" onclick="showSection('users', this)"><i class="fa-solid fa-users"></i>Users</button>
+    <button class="admin-tab" onclick="showSection('tasks', this)"><i class="fa-solid fa-hand-pointer"></i>Tasks</button>
+    <button class="admin-tab" onclick="showSection('tiers', this)"><i class="fa-solid fa-crown"></i>Tiers</button>
+    <button class="admin-tab" onclick="showSection('wealth', this)"><i class="fa-solid fa-gem"></i>Wealth</button>
+    <button class="admin-tab" onclick="showSection('settings', this)"><i class="fa-solid fa-gear"></i>Settings</button>
+  </nav>
+
+  <div class="admin-container">
+    <!-- DASHBOARD -->
+    <section id="dashboard" class="section active">
+      <h2 class="section-title"><i class="fa-solid fa-chart-line"></i>Overview</h2>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value" id="s-users">0</div><div class="stat-label">Users</div></div>
+        <div class="stat-card"><div class="stat-value mint" id="s-deposits">₦0</div><div class="stat-label">Deposits</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:var(--warning)" id="s-pend-dep">0</div><div class="stat-label">Pending Dep.</div></div>
+        <div class="stat-card"><div class="stat-value" style="color:var(--warning)" id="s-pend-wd">0</div><div class="stat-label">Pending W/D</div></div>
+        <div class="stat-card"><div class="stat-value" id="s-withdrawals">₦0</div><div class="stat-label">Withdrawals</div></div>
+        <div class="stat-card"><div class="stat-value mint" id="s-tasks">0</div><div class="stat-label">Claims Today</div></div>
+        <div class="stat-card"><div class="stat-value gold" id="s-comm">₦0</div><div class="stat-label">Commissions</div></div>
+      </div>
+    </section>
+
+    <!-- DEPOSITS -->
+    <section id="deposits" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-arrow-down"></i>Deposits</h2>
+      <div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i>Verify payment in your bank before approving. Approving credits wallet + pays referral commission automatically.</div>
+      <div class="filter-bar">
+        <select class="select" id="dep-filter" onchange="loadDeposits()">
+          <option value="pending">Pending</option><option value="completed">Completed</option>
+          <option value="rejected">Rejected</option><option value="all">All</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>User</th><th>Amount</th><th>Sender / Proof</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody id="dep-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- WITHDRAWALS -->
+    <section id="withdrawals" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-arrow-up"></i>Withdrawals</h2>
+      <div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i>Approve = you pay manually from your bank. Reject = instant auto-refund.</div>
+      <div class="filter-bar">
+        <select class="select" id="wd-filter" onchange="loadWithdrawals()">
+          <option value="pending">Pending</option><option value="approved">Approved</option>
+          <option value="rejected">Rejected</option><option value="all">All</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>User</th><th>Amount</th><th>Bank / Account</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+        <tbody id="wd-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- USERS -->
+    <section id="users" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-users"></i>Users</h2>
+      <div class="filter-bar">
+        <input class="input" id="user-search" placeholder="Search email or name...">
+        <button class="btn btn-primary btn-sm" onclick="loadUsers()"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Email</th><th>Name</th><th>Tier</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="users-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- TASKS -->
+    <section id="tasks" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-hand-pointer"></i>Tasks Manager</h2>
+      <div class="filter-bar">
+        <button class="btn btn-primary btn-sm" onclick="openTaskModal()"><i class="fa-solid fa-plus"></i> New Task</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Task</th><th>Reward</th><th>Min Tier</th><th>Claims (today/total)</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="tasks-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- TIERS -->
+    <section id="tiers" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-crown"></i>Tiers A1–A7</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Tier</th><th>Members</th><th>Upgrade Cost (₦)</th><th>Description</th><th>Active</th><th></th></tr></thead>
+        <tbody id="tiers-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- WEALTH -->
+    <section id="wealth" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-gem"></i>Wealth Packages</h2>
+      <div class="card">
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Name</label><input class="input" id="wp-name"></div>
+          <div class="form-group"><label class="form-label">Investment ₦</label><input type="number" class="input" id="wp-inv"></div>
+          <div class="form-group"><label class="form-label">Daily ₦</label><input type="number" class="input" id="wp-daily"></div>
+          <div class="form-group"><label class="form-label">Days</label><input type="number" class="input" id="wp-days"></div>
+          <div class="form-group"><label class="form-label">Total ₦</label><input type="number" class="input" id="wp-total"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="savePackage()"><i class="fa-solid fa-plus"></i> Create Package</button>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Name</th><th>Invest</th><th>Daily</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody id="pkg-table"></tbody>
+      </table></div>
+      <h2 class="section-title" style="margin-top:24px;"><i class="fa-solid fa-briefcase"></i>Active Investments</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Ends</th><th>Status</th></tr></thead>
+        <tbody id="inv-table"></tbody>
+      </table></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="settings" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-gear"></i>Settings</h2>
+      <div class="card">
+        <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-percent mint"></i> Commissions & Fees</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Referral Commission %</label><input type="number" class="input" id="set-ref-pct"></div>
+          <div class="form-group"><label class="form-label">Withdrawal Fee %</label><input type="number" class="input" id="set-wd-fee"></div>
+          <div class="form-group"><label class="form-label">Min Deposit ₦</label><input type="number" class="input" id="set-min-dep"></div>
+          <div class="form-group"><label class="form-label">Min Withdrawal ₦</label><input type="number" class="input" id="set-min-wd"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettingsGroup('fees')"><i class="fa-solid fa-save"></i> Save</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-building-columns mint"></i> Deposit Bank Account</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Bank Name</label><input class="input" id="set-bank"></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input class="input" id="set-acct"></div>
+          <div class="form-group"><label class="form-label">Account Name</label><input class="input" id="set-acct-name"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettingsGroup('bank')"><i class="fa-solid fa-save"></i> Save</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-headset mint"></i> Support Links</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Telegram</label><input class="input" id="set-tg"></div>
+          <div class="form-group"><label class="form-label">WhatsApp</label><input class="input" id="set-wa"></div>
+          <div class="form-group"><label class="form-label">Support Email</label><input class="input" id="set-support"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveSettingsGroup('links')"><i class="fa-solid fa-save"></i> Save</button>
+      </div>
+    </section>
+  </div>
+
+  <!-- USER MODAL -->
+  <div class="modal-overlay" id="user-modal"><div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-family:'Sora';">Manage User</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('user-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="card" style="margin-bottom:14px;">
+      <div class="list-row"><span class="muted">Email</span><b id="m-email">—</b></div>
+      <div class="list-row"><span class="muted">Balance</span><b class="mint" id="m-balance">₦0</b></div>
+    </div>
+    <div class="form-group"><label class="form-label">Tier</label>
+      <select class="select" id="m-tier"><option>A0</option><option>A1</option><option>A2</option><option>A3</option><option>A4</option><option>A5</option><option>A6</option><option>A7</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Account Status</label>
+      <select class="select" id="m-frozen"><option value="false">Active</option><option value="true">Frozen</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Adjust Balance</label>
+      <div style="display:flex;gap:8px;">
+        <input type="number" class="input" id="m-amount" placeholder="Amount">
+        <button class="btn btn-primary btn-sm" onclick="adjust('credit')">Credit</button>
+        <button class="btn btn-danger btn-sm" onclick="adjust('debit')">Debit</button>
+      </div>
+      <input class="input" id="m-reason" placeholder="Reason" style="margin-top:8px;">
+    </div>
+    <button class="btn btn-gold btn-block" onclick="saveUser()"><i class="fa-solid fa-save"></i> Save Changes</button>
+  </div></div>
+
+  <!-- TASK MODAL -->
+  <div class="modal-overlay" id="task-modal"><div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-family:'Sora';">Task Editor</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('task-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="t-id">
+    <div class="form-group"><label class="form-label">Title</label><input class="input" id="t-title"></div>
+    <div class="form-group"><label class="form-label">Description</label><input class="input" id="t-desc"></div>
+    <div class="grid-form">
+      <div class="form-group"><label class="form-label">Reward ₦</label><input type="number" class="input" id="t-reward"></div>
+      <div class="form-group"><label class="form-label">Min Tier</label>
+        <select class="select" id="t-tier"><option>A0</option><option>A1</option><option>A2</option><option>A3</option><option>A4</option><option>A5</option><option>A6</option><option>A7</option></select>
+      </div>
+      <div class="form-group"><label class="form-label">Sort Order</label><input type="number" class="input" id="t-sort" value="0"></div>
+    </div>
+    <div class="form-group"><label class="form-label">Icon</label>
+      <select class="select" id="t-icon">
+        <option value="fa-solid fa-hand-pointer">👆 Tap</option>
+        <option value="fa-solid fa-calendar-check">📅 Check-in</option>
+        <option value="fa-solid fa-newspaper">📰 Post</option>
+        <option value="fa-solid fa-play">▶️ Video</option>
+        <option value="fa-solid fa-user-plus">👥 Social</option>
+        <option value="fa-solid fa-clipboard-check">📋 Survey</option>
+        <option value="fa-solid fa-crown">👑 VIP</option>
+        <option value="fa-solid fa-bolt">⚡ Power</option>
+        <option value="fa-solid fa-gem">💎 Gem</option>
+        <option value="fa-solid fa-fire">🔥 Fire</option>
+      </select>
+    </div>
+    <div class="form-group"><label class="form-label">Status</label>
+      <select class="select" id="t-active"><option value="true">Active</option><option value="false">Paused</option></select>
+    </div>
+    <button class="btn btn-gold btn-block" onclick="saveTask()"><i class="fa-solid fa-save"></i> Save Task</button>
+  </div></div>
+
+  <!-- MESSAGE MODAL -->
+  <div class="modal-overlay" id="msg-modal"><div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-family:'Sora';">Send Message</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('msg-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="msg-user">
+    <div class="form-group"><label class="form-label">To</label><input class="input" id="msg-email" disabled></div>
+    <div class="form-group"><label class="form-label">Title</label><input class="input" id="msg-title"></div>
+    <div class="form-group"><label class="form-label">Message</label><textarea class="input" id="msg-body" rows="4"></textarea></div>
+    <button class="btn btn-gold btn-block" onclick="sendMsg()"><i class="fa-solid fa-paper-plane"></i> Send</button>
+  </div></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module">
+    import { requireAdmin, supabase } from '/assets/js/auth-guard.js';
+    const admin = await requireAdmin();
+    document.getElementById('admin-email').textContent = admin.email;
+
+    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+    const api = async (action, opts = {}) => {
+      const res = await fetch(`/api/admin?action=${action}`, {
+        ...opts,
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` , ...(opts.headers || {}) },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      return data;
+    };
+    window.logout = async () => { await supabase.auth.signOut(); location.href = '/login.html'; };
+    window.closeModal = id => document.getElementById(id).classList.remove('active');
+    window.showSection = (id, btn) => {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      btn.classList.add('active');
+      ({ dashboard: loadDashboard, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
+    };
+    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
+
+    // ===== DASHBOARD =====
+    async function loadDashboard() {
+      const s = await api('get-dashboard-stats');
+      document.getElementById('s-users').textContent = s.users;
+      document.getElementById('s-deposits').textContent = `₦${s.totalDeposits.toLocaleString()}`;
+      document.getElementById('s-pend-dep').textContent = s.pendingDeposits;
+      document.getElementById('s-pend-wd').textContent = s.pendingWithdrawals;
+      document.getElementById('s-withdrawals').textContent = `₦${s.totalWithdrawals.toLocaleString()}`;
+      document.getElementById('s-tasks').textContent = s.tasksToday;
+      document.getElementById('s-comm').textContent = `₦${s.totalCommissions.toLocaleString()}`;
+    }
+
+    // ===== DEPOSITS =====
+    window.loadDeposits = async () => {
+      const { deposits } = await api(`get-deposits&status=${document.getElementById('dep-filter').value}`);
+      document.getElementById('dep-table').innerHTML = deposits.length ? deposits.map(d => `
+        <tr>
+          <td><b>${d.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${d.profiles?.email}</div></td>
+          <td class="mint" style="font-weight:800;">₦${Number(d.amount).toLocaleString()}</td>
+          <td style="font-size:.8rem;">${d.sender_name || '—'}<div class="muted" style="font-size:.7rem;">${d.proof_ref || d.payment_method || ''}</div></td>
+          <td>${badge(d.status)}</td>
+          <td style="font-size:.78rem;">${new Date(d.created_at).toLocaleDateString()}</td>
+          <td>${d.status === 'pending' ? `<div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="processDeposit('${d.id}','approve')">Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="processDeposit('${d.id}','reject')">Reject</button></div>` : '—'}</td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No deposits</td></tr>';
+    };
+    window.processDeposit = async (id, act) => {
+      if (!confirm(`${act.toUpperCase()} this deposit?`)) return;
+      try {
+        const r = await api('process-deposit', { method: 'POST', body: JSON.stringify({ deposit_id: id, act }) });
+        showToast(act === 'approve' ? `Approved! ₦${r.credited.toLocaleString()} credited${r.commission?.paid ? ` + ₦${r.commission.amount.toLocaleString()} commission` : ''}` : 'Deposit rejected', act === 'approve' ? 'success' : 'error');
+        loadDeposits(); loadDashboard();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== WITHDRAWALS =====
+    window.loadWithdrawals = async () => {
+      const { withdrawals } = await api(`get-withdrawals&status=${document.getElementById('wd-filter').value}`);
+      document.getElementById('wd-table').innerHTML = withdrawals.length ? withdrawals.map(w => `
+        <tr>
+          <td><b>${w.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${w.profiles?.email}</div></td>
+          <td style="font-weight:800;color:var(--warning);">₦${Number(w.amount).toLocaleString()}</td>
+          <td style="font-size:.8rem;">${w.bank_name}<div class="muted" style="font-size:.72rem;">${w.account_number} • ${w.account_name}</div></td>
+          <td>${badge(w.status)}</td>
+          <td style="font-size:.78rem;">${new Date(w.created_at).toLocaleDateString()}</td>
+          <td>${w.status === 'pending' ? `<div class="action-row">
+            <button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Pay</button>
+            <button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : '—'}</td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No withdrawals</td></tr>';
+    };
+    window.processWithdrawal = async (id, act) => {
+      if (!confirm(act === 'approve' ? 'Mark as PAID? You must send the money from your bank now.' : 'REJECT and auto-refund this user?')) return;
+      try {
+        await api('process-withdrawal', { method: 'POST', body: JSON.stringify({ withdrawal_id: id, act }) });
+        showToast(act === 'approve' ? 'Approved — complete the bank transfer manually' : 'Rejected & refunded', act === 'approve' ? 'gold' : 'error');
+        loadWithdrawals(); loadDashboard();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== USERS =====
+    let currentUserId = null;
+    window.loadUsers = async () => {
+      const { users } = await api(`get-users&search=${encodeURIComponent(document.getElementById('user-search').value || '')}`);
+      document.getElementById('users-table').innerHTML = users.length ? users.map(u => `
+        <tr>
+          <td style="font-size:.82rem;">${u.email}</td>
+          <td>${u.full_name || '—'}</td>
+          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span></td>
+          <td class="mint" style="font-weight:700;">₦${Number(u.wallets?.[0]?.balance || 0).toLocaleString()}</td>
+          <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
+          <td><div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
+            <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
+          </div></td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
+    };
+    window.openUser = (id, email, balance, tier, frozen) => {
+      currentUserId = id;
+      document.getElementById('m-email').textContent = email;
+      document.getElementById('m-balance').textContent = `₦${Number(balance).toLocaleString()}`;
+      document.getElementById('m-tier').value = tier;
+      document.getElementById('m-frozen').value = String(frozen);
+      document.getElementById('user-modal').classList.add('active');
+    };
+    window.saveUser = async () => {
+      try {
+        await api('update-user', { method: 'POST', body: JSON.stringify({ user_id: currentUserId, tier: document.getElementById('m-tier').value, is_frozen: document.getElementById('m-frozen').value === 'true' }) });
+        showToast('User updated', 'success'); closeModal('user-modal'); loadUsers();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.adjust = async (type) => {
+      const amount = document.getElementById('m-amount').value;
+      if (!amount) return showToast('Enter amount', 'error');
+      try {
+        const r = await api('adjust-balance', { method: 'POST', body: JSON.stringify({ user_id: currentUserId, amount, type, reason: document.getElementById('m-reason').value }) });
+        showToast(`${type}ed! New balance ₦${r.new_balance.toLocaleString()}`, 'success');
+        document.getElementById('m-amount').value = ''; document.getElementById('m-reason').value = '';
+        document.getElementById('m-balance').textContent = `₦${r.new_balance.toLocaleString()}`;
+        loadUsers();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.openMsg = (id, email) => {
+      document.getElementById('msg-user').value = id;
+      document.getElementById('msg-email').value = email;
+      document.getElementById('msg-modal').classList.add('active');
+    };
+    window.sendMsg = async () => {
+      try {
+        await api('send-message', { method: 'POST', body: JSON.stringify({ user_id: document.getElementById('msg-user').value, title: document.getElementById('msg-title').value, body: document.getElementById('msg-body').value }) });
+        showToast('Message sent', 'success'); closeModal('msg-modal');
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== TASKS =====
+    let tasksCache = [];
+    async function loadTasks() {
+      const { tasks } = await api('get-tasks');
+      tasksCache = tasks;
+      document.getElementById('tasks-table').innerHTML = tasks.length ? tasks.map(t => `
+        <tr>
+          <td><i class="${t.icon}" style="color:var(--primary);margin-right:8px;"></i><b>${t.title}</b></td>
+          <td class="gold" style="font-weight:800;">₦${Number(t.reward_amount).toLocaleString()}</td>
+          <td><span class="badge badge-gray">${t.min_tier}</span></td>
+          <td>${t.claims.today} / ${t.claims.total}</td>
+          <td>${t.is_active ? '<span class="badge badge-mint">Active</span>' : '<span class="badge badge-amber">Paused</span>'}</td>
+          <td><div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="openTaskModal('${t.id}')"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleTask('${t.id}', ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
+            <button class="btn btn-danger btn-sm" onclick="delTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+          </div></td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
+    }
+    window.openTaskModal = (id) => {
+      const t = tasksCache.find(x => x.id === id);
+      document.getElementById('t-id').value = t?.id || '';
+      document.getElementById('t-title').value = t?.title || '';
+      document.getElementById('t-desc').value = t?.description || '';
+      document.getElementById('t-reward').value = t?.reward_amount || '';
+      document.getElementById('t-tier').value = t?.min_tier || 'A0';
+      document.getElementById('t-icon').value = t?.icon || 'fa-solid fa-hand-pointer';
+      document.getElementById('t-sort').value = t?.sort_order || 0;
+      document.getElementById('t-active').value = String(t?.is_active !== false);
+      document.getElementById('task-modal').classList.add('active');
+    };
+    window.saveTask = async () => {
+      try {
+        await api('save-task', { method: 'POST', body: JSON.stringify({
+          id: document.getElementById('t-id').value || undefined,
+          title: document.getElementById('t-title').value,
+          description: document.getElementById('t-desc').value,
+          reward_amount: document.getElementById('t-reward').value,
+          min_tier: document.getElementById('t-tier').value,
+          icon: document.getElementById('t-icon').value,
+          sort_order: document.getElementById('t-sort').value,
+          is_active: document.getElementById('t-active').value === 'true'
+        })});
+        showToast('Task saved', 'success'); closeModal('task-modal'); loadTasks();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.toggleTask = async (id, active) => {
+      const t = tasksCache.find(x => x.id === id);
+      try { await api('save-task', { method: 'POST', body: JSON.stringify({ id, title: t.title, reward_amount: t.reward_amount, is_active: active }) }); showToast(active ? 'Task activated' : 'Task paused', 'success'); loadTasks(); }
+      catch (e) { showToast(e.message, 'error'); }
+    };
+    window.delTask = async (id) => {
+      if (!confirm('Delete this task permanently?')) return;
+      try { await api('delete-task', { method: 'POST', body: JSON.stringify({ id }) }); showToast('Task deleted', 'success'); loadTasks(); }
+      catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== TIERS =====
+    async function loadTiers() {
+      const { tiers } = await api('get-tiers');
+      document.getElementById('tiers-table').innerHTML = tiers.map(t => `
+        <tr>
+          <td><span class="badge badge-gold">${t.tier}</span></td>
+          <td>${t.members}</td>
+          <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}"></td>
+          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${t.description || ''}"></td>
+          <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;"></td>
+          <td><button class="btn btn-primary btn-sm" onclick="saveTier('${t.tier}')"><i class="fa-solid fa-save"></i></button></td>
+        </tr>`).join('');
+    }
+    window.saveTier = async (tier) => {
+      try {
+        await api('update-tier', { method: 'POST', body: JSON.stringify({
+          tier,
+          upgrade_cost: document.getElementById(`cost-${tier}`).value,
+          description: document.getElementById(`desc-${tier}`).value,
+          is_active: document.getElementById(`act-${tier}`).checked
+        })});
+        showToast(`${tier} updated`, 'success');
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== WEALTH =====
+    let pkgCache = [];
+    async function loadWealth() {
+      const [{ packages }, { investments }] = await Promise.all([api('get-wealth-packages'), api('get-investments')]);
+      pkgCache = packages;
+      document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => `
+        <tr>
+          <td><b>${p.name}</b></td>
+          <td class="mint">₦${Number(p.investment_amount).toLocaleString()}</td>
+          <td class="gold">₦${Number(p.daily_return).toLocaleString()}</td>
+          <td>${p.duration_days}</td>
+          <td>${badge(p.is_active ? 'active' : 'rejected')}</td>
+          <td><div class="action-row">
+            <button class="btn btn-primary btn-sm" onclick="editPackage('${p.id}')"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-danger btn-sm" onclick="delPackage('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+          </div></td>
+        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
+      document.getElementById('inv-table').innerHTML = investments.length ? investments.map(i => `
+        <tr>
+          <td style="font-size:.82rem;">${i.profiles?.email || '—'}</td>
+          <td>${i.wealth_packages?.name || '—'}</td>
+          <td class="mint">₦${Number(i.amount).toLocaleString()}</td>
+          <td style="font-size:.8rem;">${i.end_date}</td>
+          <td>${badge(i.status === 'active' ? 'active' : i.status)}</td>
+        </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:30px;" class="muted">No investments yet</td></tr>';
+    }
+    window.savePackage = async () => {
+      try {
+        await api('save-wealth-package', { method: 'POST', body: JSON.stringify({
+          name: document.getElementById('wp-name').value,
+          investment_amount: document.getElementById('wp-inv').value,
+          daily_return: document.getElementById('wp-daily').value,
+          duration_days: document.getElementById('wp-days').value,
+          total_return: document.getElementById('wp-total').value
+        })});
+        showToast('Package created', 'success');
+        ['wp-name','wp-inv','wp-daily','wp-days','wp-total'].forEach(id => document.getElementById(id).value = '');
+        loadWealth();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.editPackage = (id) => {
+      const p = pkgCache.find(x => x.id === id);
+      const name = prompt('Package name', p.name); if (name === null) return;
+      const inv = prompt('Investment ₦', p.investment_amount); if (inv === null) return;
+      const daily = prompt('Daily return ₦', p.daily_return); if (daily === null) return;
+      const days = prompt('Duration (days)', p.duration_days); if (days === null) return;
+      const total = prompt('Total return ₦', p.total_return); if (total === null) return;
+      api('save-wealth-package', { method: 'POST', body: JSON.stringify({ id, name, investment_amount: inv, daily_return: daily, duration_days: days, total_return: total, is_active: p.is_active }) })
+        .then(() => { showToast('Package updated', 'success'); loadWealth(); })
+        .catch(e => showToast(e.message, 'error'));
+    };
+    window.delPackage = async (id) => {
+      if (!confirm('Delete this package?')) return;
+      try { await api('delete-wealth-package', { method: 'POST', body: JSON.stringify({ id }) }); showToast('Package deleted', 'success'); loadWealth(); }
+      catch (e) { showToast(e.message, 'error'); }
+    };
+
+    // ===== SETTINGS =====
+    async function loadSettings() {
+      const { settings: s } = await api('get-settings');
+      document.getElementById('set-ref-pct').value = s.referral_commission_percentage ?? '10';
+      document.getElementById('set-wd-fee').value = s.withdrawal_fee_percentage ?? '0';
+      document.getElementById('set-min-dep').value = s.min_deposit ?? '1000';
+      document.getElementById('set-min-wd').value = s.min_withdrawal ?? '1000';
+      document.getElementById('set-bank').value = s.deposit_bank_name || '';
+      document.getElementById('set-acct').value = s.deposit_account_number || '';
+      document.getElementById('set-acct-name').value = s.deposit_account_name || '';
+      document.getElementById('set-tg').value = s.telegram_link || '';
+      document.getElementById('set-wa').value = s.whatsapp_link || '';
+      document.getElementById('set-support').value = s.support_link || '';
+    }
+    window.saveSettingsGroup = async (group) => {
+      const map = {
+        fees: { referral_commission_percentage: document.getElementById('set-ref-pct').value, withdrawal_fee_percentage: document.getElementById('set-wd-fee').value, min_deposit: document.getElementById('set-min-dep').value, min_withdrawal: document.getElementById('set-min-wd').value },
+        bank: { deposit_bank_name: document.getElementById('set-bank').value, deposit_account_number: document.getElementById('set-acct').value, deposit_account_name: document.getElementById('set-acct-name').value },
+        links: { telegram_link: document.getElementById('set-tg').value, whatsapp_link: document.getElementById('set-wa').value, support_link: document.getElementById('set-support').value }
+      };
+      try { await api('save-settings', { method: 'POST', body: JSON.stringify(map[group]) }); showToast('Settings saved', 'success'); }
+      catch (e) { showToast(e.message, 'error'); }
+    };
+
+    loadDashboard();
+  </script>
+</body>
+</html>
