@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Wealth Center</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .pkg-card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px; margin-bottom: 14px; position: relative; overflow: hidden; }
+    .pkg-card::after { content: ''; position: absolute; top: 0; right: 0; width: 120px; height: 120px; background: radial-gradient(circle at top right, var(--gold-dim), transparent 70%); pointer-events: none; }
+    .pkg-name { font-family: 'Sora'; font-weight: 800; font-size: 1.05rem; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+    .pkg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+    .pkg-cell { background: rgba(0,0,0,.25); border-radius: 10px; padding: 10px; text-align: center; }
+    .pkg-cell b { display: block; font-family: 'Sora'; font-size: .88rem; color: var(--primary); }
+    .pkg-cell span { font-size: .66rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+    .pkg-cell.gold b { color: var(--gold); }
+    .inv-row { display: flex; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--border); }
+    .inv-row:last-child { border-bottom: none; }
+    .inv-info { flex: 1; min-width: 0; }
+    .inv-name { font-weight: 800; font-size: .92rem; }
+    .inv-meta { font-size: .74rem; color: var(--muted); margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <div class="page">
+    <h1 class="page-title">Wealth Center</h1>
+    <p class="page-sub">Invest in fixed-return plans. Collect your return daily.</p>
+
+    <div class="section-title"><i class="fa-solid fa-gem"></i> Available Plans</div>
+    <div id="pkg-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading plans...</div></div>
+
+    <div class="section-title"><i class="fa-solid fa-briefcase"></i> My Investments</div>
+    <div class="card" id="inv-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
+  </div>
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+    const today = new Date().toISOString().slice(0, 10);
+
+    async function load() {
+      const [pkgR, invR] = await Promise.all([
+        supabase.from('wealth_packages').select('*').eq('is_active', true).order('investment_amount', { ascending: true }),
+        supabase.from('wealth_investments').select('*, wealth_packages(name, daily_return, duration_days)').eq('user_id', user.id).order('created_at', { ascending: false })
+      ]);
+
+      // Available plans
+      const pkgBox = document.getElementById('pkg-list');
+      const pkgs = (pkgR.data || []).filter(p => (!p.start_date || today >= p.start_date) && (!p.end_date || today <= p.end_date));
+      if (!pkgs.length) {
+        pkgBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-gem"></i>No plans open right now</div>';
+      } else {
+        pkgBox.innerHTML = pkgs.map(p => {
+          const roi = Math.round((Number(p.total_return) / Number(p.investment_amount) - 1) * 100);
+          return `
+            <div class="pkg-card">
+              <div class="pkg-name">${p.name} <span class="badge badge-gold">+${roi}% ROI</span></div>
+              <div class="pkg-grid">
+                <div class="pkg-cell"><b>₦${Number(p.investment_amount).toLocaleString()}</b><span>Invest</span></div>
+                <div class="pkg-cell gold"><b>₦${Number(p.daily_return).toLocaleString()}</b><span>Daily</span></div>
+                <div class="pkg-cell"><b>${p.duration_days}</b><span>Days</span></div>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span class="muted" style="font-size:.8rem;">Total: <b class="mint">₦${Number(p.total_return).toLocaleString()}</b></span>
+                <button class="btn btn-primary btn-sm" onclick="invest('${p.id}', this)"><i class="fa-solid fa-gem"></i> Invest</button>
+              </div>
+            </div>`;
+        }).join('');
+      }
+
+      // My investments
+      const invBox = document.getElementById('inv-list');
+      const invs = invR.data || [];
+      if (!invs.length) {
+        invBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No investments yet. Pick a plan above!</div>';
+      } else {
+        invBox.innerHTML = invs.map(i => {
+          const daysLeft = Math.max(0, Math.ceil((new Date(i.end_date) - new Date(today)) / 86400000));
+          const collected = i.last_payout_date === today;
+          const ended = i.status !== 'active' || today > i.end_date;
+          let btn;
+          if (ended) btn = '<span class="badge badge-gray">Completed</span>';
+          else if (collected) btn = '<button class="btn btn-sm btn-ghost" disabled><i class="fa-solid fa-check"></i> Collected</button>';
+          else btn = `<button class="btn btn-sm btn-primary" onclick="claimReturn('${i.id}', this)"><i class="fa-solid fa-coins"></i> Claim ₦${Number(i.wealth_packages?.daily_return || 0).toLocaleString()}</button>`;
+          return `
+            <div class="inv-row">
+              <div class="inv-info">
+                <div class="inv-name">${i.wealth_packages?.name || 'Plan'}</div>
+                <div class="inv-meta">${ended ? 'Plan ended' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`} • invested ₦${Number(i.amount).toLocaleString()}</div>
+              </div>
+              ${btn}
+            </div>`;
+        }).join('');
+      }
+    }
+
+    window.invest = async (pkgId, btn) => {
+      if (!confirm('Invest in this plan? The amount will be deducted from your wallet.')) return;
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
+      const res = await fetch('/api/finance?action=investWealth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ package_id: pkgId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-gem"></i> Invest';
+        return;
+      }
+      showToast('Investment active! Collect your first return tomorrow.', 'gold');
+      window.APMShell?.refresh();
+      load();
+    };
+
+    window.claimReturn = async (invId, btn) => {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
+      const res = await fetch('/api/finance?action=claimWealthReturn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({ investment_id: invId })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error, 'error');
+        load();
+        return;
+      }
+      showToast(`+₦${data.amount.toLocaleString()} daily return collected!`, 'gold');
+      window.APMShell?.refresh();
+      load();
+    };
+
+    load();
+  </script>
+</body>
+</html>
