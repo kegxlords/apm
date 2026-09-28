@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
   <style>
+    .tg-btn { background: linear-gradient(135deg, #2AABEE, #229ED9); color: white; box-shadow: 0 8px 24px rgba(42,171,238,.35); }
+    .welcome-emoji { font-size: 3.2rem; }
     .hero-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; position: relative; z-index: 1; }
     .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
     .quick-tile {
@@ -150,6 +152,34 @@
     }
 
     load();
+    // ===== Telegram welcome popup (shows once per day) =====
+const todayStr = new Date().toISOString().slice(0, 10);
+const POPUP_KEY = 'apm_welcome_shown';
+const { data: tgRow } = await supabase.from('site_settings').select('value').eq('key', 'telegram_link').single();
+
+if (tgRow?.value && localStorage.getItem(POPUP_KEY) !== todayStr) {
+  document.getElementById('tg-join-btn').href = tgRow.value;
+  document.getElementById('welcome-modal').classList.add('active');
+}
+const dismissPopup = () => {
+  document.getElementById('welcome-modal').classList.remove('active');
+  localStorage.setItem(POPUP_KEY, todayStr);
+};
+document.getElementById('tg-join-btn').addEventListener('click', dismissPopup);
+document.getElementById('tg-later-btn').addEventListener('click', dismissPopup);
   </script>
+  <div class="modal-overlay" id="welcome-modal">
+  <div class="modal" style="text-align:center;">
+    <div class="welcome-emoji">🎉</div>
+    <h3 style="font-family:'Sora'; margin:10px 0 6px;">Welcome to APM!</h3>
+    <p class="muted" style="font-size:.9rem; margin-bottom:20px; line-height:1.5;">
+      Join our official Telegram group for daily updates, payment proofs and exclusive member bonuses.
+    </p>
+    <a id="tg-join-btn" href="#" target="_blank" class="btn btn-block tg-btn" style="margin-bottom:10px;">
+      <i class="fa-brands fa-telegram"></i> Join Telegram Group
+    </a>
+    <button class="btn btn-ghost btn-block" id="tg-later-btn"><i class="fa-solid fa-xmark"></i> Maybe Later</button>
+  </div>
+  </div>
 </body>
 </html>
