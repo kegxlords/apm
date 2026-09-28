@@ -8,15 +8,9 @@
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
   <style>
-    .tg-btn { background: linear-gradient(135deg, #2AABEE, #229ED9); color: white; box-shadow: 0 8px 24px rgba(42,171,238,.35); }
-    .welcome-emoji { font-size: 3.2rem; }
     .hero-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; position: relative; z-index: 1; }
     .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-    .quick-tile {
-      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-      padding: 14px 6px; text-align: center; text-decoration: none; color: var(--text);
-      font-size: .7rem; font-weight: 700; transition: border-color .2s, transform .15s;
-    }
+    .quick-tile { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 14px 6px; text-align: center; text-decoration: none; color: var(--text); font-size: .7rem; font-weight: 700; transition: transform .15s; }
     .quick-tile:active { transform: scale(.96); }
     .quick-tile i { display: block; font-size: 1.3rem; margin-bottom: 8px; color: var(--primary); }
     .quick-tile.gold i { color: var(--gold); }
@@ -30,6 +24,8 @@
     .txn-amount.plus { color: var(--primary); }
     .txn-amount.minus { color: var(--danger); }
     .txn-amount.wait { color: var(--warning); }
+    .tg-btn { background: linear-gradient(135deg, #2AABEE, #229ED9); color: white; box-shadow: 0 8px 24px rgba(42,171,238,.35); }
+    .welcome-emoji { font-size: 3.2rem; }
   </style>
 </head>
 <body>
@@ -66,6 +62,21 @@
     </div>
   </div>
 
+  <!-- Telegram welcome popup -->
+  <div class="modal-overlay" id="welcome-modal">
+    <div class="modal" style="text-align:center;">
+      <div class="welcome-emoji">🎉</div>
+      <h3 style="font-family:'Sora'; margin:10px 0 6px;">Welcome to APM!</h3>
+      <p class="muted" style="font-size:.9rem; margin-bottom:20px; line-height:1.5;">
+        Join our official Telegram group for daily updates, payment proofs and exclusive member bonuses.
+      </p>
+      <a id="tg-join-btn" href="#" target="_blank" class="btn btn-block tg-btn" style="margin-bottom:10px;">
+        <i class="fa-brands fa-telegram"></i> Join Telegram Group
+      </a>
+      <button class="btn btn-ghost btn-block" id="tg-later-btn"><i class="fa-solid fa-xmark"></i> Maybe Later</button>
+    </div>
+  </div>
+
   <div id="footer-container"></div>
 
   <script src="/assets/js/notifications.js"></script>
@@ -80,18 +91,18 @@
       withdrawal:          { icon: 'fa-solid fa-arrow-up',     bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
       referral_commission: { icon: 'fa-solid fa-users',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
       wealth_return:       { icon: 'fa-solid fa-gem',          bg: 'var(--gold-dim)', color: 'var(--gold)' },
+      wealth_invest:       { icon: 'fa-solid fa-gem',          bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
       membership_upgrade:  { icon: 'fa-solid fa-crown',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
       admin_credit:        { icon: 'fa-solid fa-user-shield',  bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_debit:         { icon: 'fa-solid fa-user-shield',  bg: 'rgba(255,90,90,.15)', color: 'var(--danger)' }
     };
 
-    // Count-up animation for balance
     function countUp(el, target) {
-      const start = 0, dur = 700, t0 = performance.now();
+      const dur = 700, t0 = performance.now();
       function frame(t) {
         const p = Math.min((t - t0) / dur, 1);
         const eased = 1 - Math.pow(1 - p, 3);
-        el.textContent = `₦${Math.round(start + (target - start) * eased).toLocaleString()}`;
+        el.textContent = `₦${Math.round(target * eased).toLocaleString()}`;
         if (p < 1) requestAnimationFrame(frame);
       }
       requestAnimationFrame(frame);
@@ -109,8 +120,7 @@
         supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').gte('created_at', `${today}T00:00:00.000Z`)
       ]);
 
-      const balance = Number(walletR.data?.balance || 0);
-      countUp(document.getElementById('balance'), balance);
+      countUp(document.getElementById('balance'), Number(walletR.data?.balance || 0));
       document.getElementById('tier-label').textContent = profileR.data?.tier || 'A0';
       document.getElementById('streak-label').textContent = profileR.data?.current_streak || 0;
 
@@ -120,13 +130,11 @@
       const earnTypes = ['task_claim', 'referral_commission', 'wealth_return'];
       const { data: allEarn } = await supabase.from('transactions').select('amount')
         .eq('user_id', user.id).eq('status', 'approved').in('type', earnTypes);
-      const totalEarned = (allEarn || []).reduce((s, r) => s + Number(r.amount), 0);
-      document.getElementById('stat-total').textContent = `₦${totalEarned.toLocaleString()}`;
+      document.getElementById('stat-total').textContent = `₦${(allEarn || []).reduce((s, r) => s + Number(r.amount), 0).toLocaleString()}`;
 
       document.getElementById('stat-team').textContent = teamR.count || 0;
       document.getElementById('stat-tasks').textContent = claimsR.count || 0;
 
-      // Recent activity
       const card = document.getElementById('activity-card');
       const txns = txnsR.data || [];
       if (!txns.length) {
@@ -135,7 +143,7 @@
         card.innerHTML = txns.map(t => {
           const meta = TYPE_META[t.type] || TYPE_META.task_claim;
           const pending = t.status === 'pending';
-          const negative = t.type === 'withdrawal' || t.type === 'admin_debit' || t.type === 'membership_upgrade';
+          const negative = ['withdrawal', 'admin_debit', 'membership_upgrade', 'wealth_invest'].includes(t.type);
           const cls = pending ? 'wait' : (negative ? 'minus' : 'plus');
           const sign = pending ? '' : (negative ? '-' : '+');
           return `
@@ -150,36 +158,24 @@
         }).join('');
       }
     }
-    // ===== Telegram welcome popup (shows once per day) =====
-const todayStr = new Date().toISOString().slice(0, 10);
-const POPUP_KEY = 'apm_welcome_shown';
-const { data: tgRow } = await supabase.from('site_settings').select('value').eq('key', 'telegram_link').single();
-
-if (tgRow?.value && localStorage.getItem(POPUP_KEY) !== todayStr) {
-  document.getElementById('tg-join-btn').href = tgRow.value;
-  document.getElementById('welcome-modal').classList.add('active');
-}
-const dismissPopup = () => {
-  document.getElementById('welcome-modal').classList.remove('active');
-  localStorage.setItem(POPUP_KEY, todayStr);
-};
-document.getElementById('tg-join-btn').addEventListener('click', dismissPopup);
-document.getElementById('tg-later-btn').addEventListener('click', dismissPopup);
 
     load();
+
+    // ===== Telegram welcome popup (once per day) =====
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const POPUP_KEY = 'apm_welcome_shown';
+    const { data: tgRow } = await supabase.from('site_settings').select('value').eq('key', 'telegram_link').single();
+
+    if (tgRow?.value && localStorage.getItem(POPUP_KEY) !== todayStr) {
+      document.getElementById('tg-join-btn').href = tgRow.value;
+      document.getElementById('welcome-modal').classList.add('active');
+    }
+    const dismissPopup = () => {
+      document.getElementById('welcome-modal').classList.remove('active');
+      localStorage.setItem(POPUP_KEY, todayStr);
+    };
+    document.getElementById('tg-join-btn').addEventListener('click', dismissPopup);
+    document.getElementById('tg-later-btn').addEventListener('click', dismissPopup);
   </script>
-  <div class="modal-overlay" id="welcome-modal">
-  <div class="modal" style="text-align:center;">
-    <div class="welcome-emoji">🎉</div>
-    <h3 style="font-family:'Sora'; margin:10px 0 6px;">Welcome to APM!</h3>
-    <p class="muted" style="font-size:.9rem; margin-bottom:20px; line-height:1.5;">
-      Join our official Telegram group for daily updates, payment proofs and exclusive member bonuses.
-    </p>
-    <a id="tg-join-btn" href="#" target="_blank" class="btn btn-block tg-btn" style="margin-bottom:10px;">
-      <i class="fa-brands fa-telegram"></i> Join Telegram Group
-    </a>
-    <button class="btn btn-ghost btn-block" id="tg-later-btn"><i class="fa-solid fa-xmark"></i> Maybe Later</button>
-  </div>
-  </div>
 </body>
 </html>
