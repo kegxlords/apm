@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .hero-actions { display: flex; gap: 10px; justify-content: center; margin-top: 18px; position: relative; z-index: 1; }
+    .quick-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
+    .quick-tile {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+      padding: 14px 6px; text-align: center; text-decoration: none; color: var(--text);
+      font-size: .7rem; font-weight: 700; transition: border-color .2s, transform .15s;
+    }
+    .quick-tile:active { transform: scale(.96); }
+    .quick-tile i { display: block; font-size: 1.3rem; margin-bottom: 8px; color: var(--primary); }
+    .quick-tile.gold i { color: var(--gold); }
+    .txn-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .txn-row:last-child { border-bottom: none; }
+    .txn-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: .95rem; flex-shrink: 0; }
+    .txn-info { flex: 1; min-width: 0; }
+    .txn-title { font-weight: 700; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .txn-date { font-size: .72rem; color: var(--muted); }
+    .txn-amount { font-family: 'Sora'; font-weight: 800; font-size: .92rem; }
+    .txn-amount.plus { color: var(--primary); }
+    .txn-amount.minus { color: var(--danger); }
+    .txn-amount.wait { color: var(--warning); }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+
+  <div class="page">
+    <div class="hero-card">
+      <div class="hero-label">Available Balance</div>
+      <div class="hero-amount" id="balance">₦0</div>
+      <div class="muted" style="font-size:.82rem;">Tier <span class="gold" id="tier-label" style="font-weight:800;">A0</span> • 🔥 <span id="streak-label">0</span>-day streak</div>
+      <div class="hero-actions">
+        <a href="/deposit.html" class="btn btn-primary btn-sm"><i class="fa-solid fa-arrow-down"></i> Deposit</a>
+        <a href="/withdraw.html" class="btn btn-gold btn-sm"><i class="fa-solid fa-arrow-up"></i> Withdraw</a>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value mint" id="stat-today">₦0</div><div class="stat-label">Earned Today</div></div>
+      <div class="stat-card"><div class="stat-value gold" id="stat-total">₦0</div><div class="stat-label">Total Earned</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-team">0</div><div class="stat-label">Team Members</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Tasks Claimed</div></div>
+    </div>
+
+    <div class="quick-grid">
+      <a href="/tasks.html" class="quick-tile"><i class="fa-solid fa-hand-pointer"></i>Tasks</a>
+      <a href="/wealth.html" class="quick-tile gold"><i class="fa-solid fa-gem"></i>Wealth</a>
+      <a href="/membership.html" class="quick-tile gold"><i class="fa-solid fa-crown"></i>Tiers</a>
+      <a href="/team.html" class="quick-tile"><i class="fa-solid fa-users"></i>Team</a>
+    </div>
+
+    <div class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> Recent Activity</div>
+    <div class="card" id="activity-card">
+      <div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div>
+    </div>
+  </div>
+
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+
+    const TYPE_META = {
+      task_claim:          { icon: 'fa-solid fa-hand-pointer', bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      deposit:             { icon: 'fa-solid fa-arrow-down',   bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      withdrawal:          { icon: 'fa-solid fa-arrow-up',     bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
+      referral_commission: { icon: 'fa-solid fa-users',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
+      wealth_return:       { icon: 'fa-solid fa-gem',          bg: 'var(--gold-dim)', color: 'var(--gold)' },
+      membership_upgrade:  { icon: 'fa-solid fa-crown',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
+      admin_credit:        { icon: 'fa-solid fa-user-shield',  bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      admin_debit:         { icon: 'fa-solid fa-user-shield',  bg: 'rgba(255,90,90,.15)', color: 'var(--danger)' }
+    };
+
+    // Count-up animation for balance
+    function countUp(el, target) {
+      const start = 0, dur = 700, t0 = performance.now();
+      function frame(t) {
+        const p = Math.min((t - t0) / dur, 1);
+        const eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = `₦${Math.round(start + (target - start) * eased).toLocaleString()}`;
+        if (p < 1) requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    async function load() {
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [walletR, profileR, teamR, claimsR, txnsR, todayR] = await Promise.all([
+        supabase.from('wallets').select('balance').eq('user_id', user.id).single(),
+        supabase.from('profiles').select('tier, current_streak').eq('id', user.id).single(),
+        supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('referred_by', user.id),
+        supabase.from('task_claims').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
+        supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').gte('created_at', `${today}T00:00:00.000Z`)
+      ]);
+
+      const balance = Number(walletR.data?.balance || 0);
+      countUp(document.getElementById('balance'), balance);
+      document.getElementById('tier-label').textContent = profileR.data?.tier || 'A0';
+      document.getElementById('streak-label').textContent = profileR.data?.current_streak || 0;
+
+      const todayEarned = (todayR.data || []).reduce((s, r) => s + Number(r.amount), 0);
+      document.getElementById('stat-today').textContent = `₦${todayEarned.toLocaleString()}`;
+
+      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return'];
+      const { data: allEarn } = await supabase.from('transactions').select('amount')
+        .eq('user_id', user.id).eq('status', 'approved').in('type', earnTypes);
+      const totalEarned = (allEarn || []).reduce((s, r) => s + Number(r.amount), 0);
+      document.getElementById('stat-total').textContent = `₦${totalEarned.toLocaleString()}`;
+
+      document.getElementById('stat-team').textContent = teamR.count || 0;
+      document.getElementById('stat-tasks').textContent = claimsR.count || 0;
+
+      // Recent activity
+      const card = document.getElementById('activity-card');
+      const txns = txnsR.data || [];
+      if (!txns.length) {
+        card.innerHTML = '<div class="empty-state"><i class="fa-solid fa-receipt"></i>No activity yet. Claim your first task!</div>';
+      } else {
+        card.innerHTML = txns.map(t => {
+          const meta = TYPE_META[t.type] || TYPE_META.task_claim;
+          const pending = t.status === 'pending';
+          const negative = t.type === 'withdrawal' || t.type === 'admin_debit' || t.type === 'membership_upgrade';
+          const cls = pending ? 'wait' : (negative ? 'minus' : 'plus');
+          const sign = pending ? '' : (negative ? '-' : '+');
+          return `
+            <div class="txn-row">
+              <div class="txn-icon" style="background:${meta.bg};color:${meta.color};"><i class="${meta.icon}"></i></div>
+              <div class="txn-info">
+                <div class="txn-title">${t.description || t.type.replace(/_/g, ' ')}</div>
+                <div class="txn-date">${new Date(t.created_at).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' })} • ${t.status}</div>
+              </div>
+              <div class="txn-amount ${cls}">${sign}₦${Number(t.amount).toLocaleString()}</div>
+            </div>`;
+        }).join('');
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
