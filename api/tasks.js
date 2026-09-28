@@ -23,7 +23,7 @@ export default async function handler(req, res) {
 }
 
 // ==========================================
-// GET TASKS (with claim status + tier locks)
+// GET TASKS (claim status + tier locks + frequency)
 // ==========================================
 async function getTasks(user, res) {
   const profile = await getProfile(user.id);
@@ -34,24 +34,36 @@ async function getTasks(user, res) {
 
   const [{ data: tasks, error: tasksError }, { data: claims }] = await Promise.all([
     supabaseAdmin.from('tasks').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
-    supabaseAdmin.from('task_claims').select('task_id').eq('user_id', user.id).eq('claim_date', today)
+    supabaseAdmin.from('task_claims').select('task_id, claim_date').eq('user_id', user.id)
   ]);
 
   if (tasksError) return res.status(500).json({ error: tasksError.message });
 
-  const claimedIds = new Set((claims || []).map(c => c.task_id));
+  // Claim map: { taskId: { today: bool, ever: bool } }
+  const claimMap = {};
+  (claims || []).forEach(c => {
+    claimMap[c.task_id] = claimMap[c.task_id] || { today: false, ever: true };
+    if (c.claim_date === today) claimMap[c.task_id].today = true;
+  });
+
   const userRank = tierRank(profile.tier);
 
-  const result = (tasks || []).map(t => ({
-    id: t.id,
-    title: t.title,
-    description: t.description,
-    reward_amount: Number(t.reward_amount),
-    min_tier: t.min_tier,
-    icon: t.icon,
-    claimed_today: claimedIds.has(t.id),
-    locked: userRank < tierRank(t.min_tier)
-  }));
+  const result = (tasks || []).map(t => {
+    const c = claimMap[t.id];
+    // 'once' = claimed forever after first claim | 'daily' = resets each UTC day
+    const claimed = t.frequency === 'once' ? !!c : !!c?.today;
+    return {
+      id: t.id,
+      title: t.title,
+      description: t.description,
+      reward_amount: Number(t.reward_amount),
+      min_tier: t.min_tier,
+      icon: t.icon,
+      frequency: t.frequency || 'daily',
+      claimed_today: claimed, // key name kept for frontend compatibility
+      locked: userRank < tierRank(t.min_tier)
+    };
+  });
 
   // Today's earnings (approved transactions since UTC midnight)
   const { data: todayTxns } = await supabaseAdmin
@@ -94,10 +106,22 @@ async function claimTask(req, user, res) {
     return res.status(403).json({ error: `Unlock at tier ${task.min_tier}` });
   }
 
+  // 3. ONE-TIME tasks: block if ever claimed
+  if (task.frequency === 'once') {
+    const { count } = await supabaseAdmin
+      .from('task_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('task_id', task_id);
+    if (count > 0) {
+      return res.status(409).json({ error: 'One-time task — you already claimed it.' });
+    }
+  }
+
   const today = todayUTC();
   const amount = Number(task.reward_amount);
 
-  // 3. Insert claim FIRST — unique(user_id, task_id, claim_date) blocks duplicates
+  // 4. Insert claim FIRST — unique(user_id, task_id, claim_date) blocks same-day duplicates
   const { data: claim, error: claimError } = await supabaseAdmin
     .from('task_claims')
     .insert({ user_id: user.id, task_id, amount, claim_date: today })
@@ -111,7 +135,7 @@ async function claimTask(req, user, res) {
     return res.status(500).json({ error: claimError.message });
   }
 
-  // 4. Credit wallet (upsert = create-if-missing safety)
+  // 5. Credit wallet (upsert = create-if-missing safety)
   const { data: wallet } = await supabaseAdmin
     .from('wallets').select('balance').eq('user_id', user.id).single();
   const newBalance = Number(wallet?.balance || 0) + amount;
@@ -122,7 +146,7 @@ async function claimTask(req, user, res) {
   );
   if (walletError) return res.status(500).json({ error: walletError.message });
 
-  // 5. Transaction record
+  // 6. Transaction record
   await supabaseAdmin.from('transactions').insert({
     user_id: user.id,
     type: 'task_claim',
@@ -132,7 +156,7 @@ async function claimTask(req, user, res) {
     description: `Task: ${task.title}`
   });
 
-  // 6. Streak update (consecutive daily claims)
+  // 7. Streak update (consecutive daily claims)
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
   let streak = profile.current_streak || 0;
   if (profile.last_claim_date === yesterday) streak += 1;
