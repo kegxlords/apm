@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>APM — Sign In</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    body { padding-bottom: 0; }
+    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+    .auth-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 32px 26px; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
+    .auth-logo { display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Sora'; font-weight: 800; font-size: 1.5rem; }
+    .auth-logo .coin { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), #00A86B); display: grid; place-items: center; color: #04110B; font-size: 1.3rem; box-shadow: 0 0 24px rgba(0,224,138,.4); }
+    .auth-logo .bolt { color: var(--gold); }
+    .auth-title { text-align: center; font-size: 1.3rem; font-weight: 800; margin: 16px 0 4px; }
+    .auth-sub { text-align: center; color: var(--muted); font-size: .88rem; margin-bottom: 24px; }
+    .auth-switch { text-align: center; margin-top: 18px; font-size: .88rem; color: var(--muted); }
+    .auth-switch a { color: var(--primary); font-weight: 700; text-decoration: none; }
+    .forgot-row { text-align: right; margin-top: 10px; }
+    .forgot-row a { color: var(--muted); font-size: .8rem; text-decoration: none; }
+    .forgot-row a:hover { color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-logo"><span class="coin">A</span> APM<span class="bolt">⚡</span></div>
+      <div class="auth-title">Welcome back</div>
+      <div class="auth-sub">Sign in to continue earning</div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="email" class="input" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="password" class="input" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
+          <i class="fa-solid fa-right-to-bracket"></i> Sign In
+        </button>
+      </form>
+
+      <div class="forgot-row"><a href="#" id="forgot">Forgot password?</a></div>
+      <div class="auth-switch">New to APM? <a href="/register.html">Create account</a></div>
+    </div>
+  </div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module">
+    import { supabase } from '/assets/js/apm-client.js';
+
+    // Already signed in? Skip to dashboard
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) window.location.href = '/dashboard.html';
+
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i> Signing in...';
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: document.getElementById('email').value.trim(),
+        password: document.getElementById('password').value
+      });
+
+      if (error) {
+        showToast(error.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+        return;
+      }
+
+      showToast('Welcome back!', 'success');
+      setTimeout(() => window.location.href = '/dashboard.html', 600);
+    });
+
+    document.getElementById('forgot').addEventListener('click', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      if (!email) return showToast('Enter your email first', 'error');
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/login.html'
+      });
+      showToast(error ? error.message : 'Password reset email sent. Check your inbox.', error ? 'error' : 'success');
+    });
+  </script>
+</body>
+</html>
