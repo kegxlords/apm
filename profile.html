@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Profile</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .profile-hero { text-align: center; background: var(--surface); border: 1px solid var(--border); border-radius: 24px; padding: 28px 20px; margin-bottom: 18px; }
+    .avatar-lg { width: 84px; height: 84px; border-radius: 50%; margin: 0 auto 14px; background: linear-gradient(135deg, var(--primary), #00A86B); display: grid; place-items: center; font-family: 'Sora'; font-size: 2rem; font-weight: 800; color: #04110B; box-shadow: 0 0 30px rgba(0,224,138,.35); }
+    .profile-name { font-family: 'Sora'; font-size: 1.3rem; font-weight: 800; }
+    .profile-email { color: var(--muted); font-size: .85rem; margin: 4px 0 12px; }
+    .link-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 4px; border-bottom: 1px solid var(--border); text-decoration: none; color: var(--text); font-weight: 600; font-size: .92rem; }
+    .link-row:last-child { border-bottom: none; }
+    .link-row i.left { width: 26px; color: var(--primary); }
+    .link-row .chev { color: var(--muted); }
+    .unread-pill { background: var(--danger); color: white; border-radius: 999px; font-size: .68rem; font-weight: 800; padding: 2px 8px; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <div class="page">
+    <div class="profile-hero">
+      <div class="avatar-lg" id="avatar">?</div>
+      <div class="profile-name" id="p-name">—</div>
+      <div class="profile-email" id="p-email">—</div>
+      <span class="badge badge-gold" id="p-tier">A0</span>
+      <span class="badge badge-gray" id="p-since">—</span>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value gold" id="p-streak">0</div><div class="stat-label">Day Streak</div></div>
+      <div class="stat-card"><div class="stat-value mint" id="p-earned">₦0</div><div class="stat-label">Total Earned</div></div>
+      <div class="stat-card"><div class="stat-value" id="p-tasks">0</div><div class="stat-label">Tasks Claimed</div></div>
+      <div class="stat-card"><div class="stat-value" id="p-team">0</div><div class="stat-label">Team</div></div>
+    </div>
+
+    <div class="card">
+      <a href="/wallet.html" class="link-row"><span><i class="fa-solid fa-wallet left"></i> Wallet & Transactions</span><i class="fa-solid fa-chevron-right chev"></i></a>
+      <a href="/messages.html" class="link-row"><span><i class="fa-solid fa-envelope left"></i> Messages <span class="unread-pill" id="unread-pill" style="display:none;">0</span></span><i class="fa-solid fa-chevron-right chev"></i></a>
+      <a href="/membership.html" class="link-row"><span><i class="fa-solid fa-crown left"></i> Membership Tier</span><i class="fa-solid fa-chevron-right chev"></i></a>
+      <a href="/team.html" class="link-row"><span><i class="fa-solid fa-users left"></i> My Referral Code</span><i class="fa-solid fa-chevron-right chev"></i></a>
+    </div>
+
+    <div class="card">
+      <div class="section-title" style="margin-top:0;"><i class="fa-solid fa-headset"></i> Support</div>
+      <div id="support-box" style="display:flex;gap:10px;flex-wrap:wrap;"></div>
+    </div>
+
+    <button class="btn btn-danger btn-block" onclick="doLogout()"><i class="fa-solid fa-right-from-bracket"></i> Log Out</button>
+  </div>
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+
+    window.doLogout = async () => { await supabase.auth.signOut(); location.href = '/login.html'; };
+
+    const [profileR, claimsR, teamR, unreadR, txnR, settingsR] = await Promise.all([
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
+      supabase.from('task_claims').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+      supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('referred_by', user.id),
+      supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false),
+      supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').in('type', ['task_claim','referral_commission','wealth_return']),
+      supabase.from('site_settings').select('key, value')
+    ]);
+
+    const p = profileR.data || {};
+    document.getElementById('avatar').textContent = (p.full_name || user.email || '?')[0].toUpperCase();
+    document.getElementById('p-name').textContent = p.full_name || 'APM Member';
+    document.getElementById('p-email').textContent = user.email || '';
+    document.getElementById('p-tier').textContent = p.tier || 'A0';
+    document.getElementById('p-since').textContent = 'Since ' + new Date(p.created_at || Date.now()).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' });
+    document.getElementById('p-streak').textContent = p.current_streak || 0;
+    document.getElementById('p-tasks').textContent = claimsR.count || 0;
+    document.getElementById('p-team').textContent = teamR.count || 0;
+    document.getElementById('p-earned').textContent = '₦' + (txnR.data || []).reduce((s, r) => s + Number(r.amount), 0).toLocaleString();
+
+    if (unreadR.count > 0) {
+      const pill = document.getElementById('unread-pill');
+      pill.style.display = 'inline-block';
+      pill.textContent = unreadR.count;
+    }
+
+    const s = {}; (settingsR.data || []).forEach(r => s[r.key] = r.value);
+    const links = [];
+    if (s.telegram_link) links.push(`<a href="${s.telegram_link}" target="_blank" class="btn btn-primary btn-sm"><i class="fa-brands fa-telegram"></i> Telegram</a>`);
+    if (s.whatsapp_link) links.push(`<a href="${s.whatsapp_link}" target="_blank" class="btn btn-primary btn-sm"><i class="fa-brands fa-whatsapp"></i> WhatsApp</a>`);
+    if (s.support_link) links.push(`<a href="mailto:${s.support_link}" class="btn btn-ghost btn-sm"><i class="fa-solid fa-envelope"></i> Email</a>`);
+    document.getElementById('support-box').innerHTML = links.join('') || '<span class="muted" style="font-size:.85rem;">No support links configured.</span>';
+  </script>
+</body>
+</html>
