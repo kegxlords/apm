@@ -85,7 +85,7 @@
   <script src="/assets/js/notifications.js"></script>
   <script type="module" src="/assets/js/components.js"></script>
   <script type="module">
-    import { requireAuth } from '/assets/js/auth-guard.js';
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
     await requireAuth();
 
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
