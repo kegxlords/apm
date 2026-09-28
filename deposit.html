@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Deposit</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .bank-card { background: linear-gradient(135deg, #0E2B1F, #123B2A); border: 1px solid rgba(0,224,138,.35); border-radius: 24px; padding: 22px; margin-bottom: 20px; }
+    .bank-card h3 { display: flex; gap: 8px; align-items: center; font-size: 1rem; margin-bottom: 14px; }
+    .bank-card h3 i { color: var(--primary); }
+    .bank-row { display: flex; justify-content: space-between; align-items: center; background: rgba(0,0,0,.25); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; font-size: .9rem; }
+    .bank-row span:first-child { color: var(--muted); font-size: .78rem; }
+    .bank-row b { font-family: 'Sora'; }
+    .copy-mini { background: var(--primary-dim); border: 1px solid rgba(0,224,138,.3); color: var(--primary); padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: .72rem; margin-left: 8px; }
+    .amount-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
+    .amount-btn { padding: 14px; background: var(--surface); border: 2px solid var(--border); border-radius: 14px; color: var(--text); font-weight: 700; cursor: pointer; }
+    .amount-btn.active { border-color: var(--primary); background: var(--primary-dim); color: var(--primary); }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <div class="page">
+    <h1 class="page-title">Deposit Funds</h1>
+    <p class="page-sub">Transfer to our account, then submit your details for verification.</p>
+
+    <div class="bank-card">
+      <h3><i class="fa-solid fa-building-columns"></i> Company Account</h3>
+      <div class="bank-row"><span>Bank Name</span><b id="bank-name">—</b></div>
+      <div class="bank-row"><span>Account Number</span><span><b id="acct-number">—</b><button class="copy-mini" onclick="copyAcct()"><i class="fa-regular fa-copy"></i> Copy</button></span></div>
+      <div class="bank-row"><span>Account Name</span><b id="acct-name">—</b></div>
+    </div>
+
+    <div class="section-title"><i class="fa-solid fa-naira-sign"></i> Amount</div>
+    <div class="amount-grid">
+      <button class="amount-btn" onclick="pickAmount(15000, this)">₦15,000</button>
+      <button class="amount-btn" onclick="pickAmount(38000, this)">₦38,000</button>
+      <button class="amount-btn" onclick="pickAmount(79500, this)">₦79,500</button>
+      <button class="amount-btn" onclick="pickAmount(175000, this)">₦175,000</button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Or enter custom amount (₦)</label>
+      <input type="number" id="custom-amount" class="input" placeholder="Minimum ₦1,000" min="1000">
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Sender Name (as shown in your bank app)</label>
+      <input type="text" id="sender-name" class="input" placeholder="e.g. John Doe" required>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Payment Method</label>
+      <select id="payment-method" class="select">
+        <option value="bank_transfer">Bank Transfer</option>
+        <option value="opay">Opay</option>
+        <option value="palmpay">PalmPay</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Transfer Reference / Receipt ID (optional)</label>
+      <input type="text" id="proof-ref" class="input" placeholder="e.g. TRF/2026/000123">
+    </div>
+
+    <button class="btn btn-primary btn-block" id="submit-btn" onclick="submitDeposit()">
+      <i class="fa-solid fa-paper-plane"></i> Submit for Verification
+    </button>
+
+    <div class="section-title"><i class="fa-solid fa-clock-rotate-left"></i> My Recent Deposits</div>
+    <div class="card" id="my-deposits"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
+  </div>
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+
+    let selected = null;
+    window.pickAmount = (amt, btn) => {
+      selected = amt;
+      document.getElementById('custom-amount').value = '';
+      document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    };
+    window.copyAcct = () => {
+      navigator.clipboard.writeText(document.getElementById('acct-number').textContent);
+      showToast('Account number copied!', 'success');
+    };
+
+    // Bank details + min deposit from settings
+    const { data: settings } = await supabase.from('site_settings').select('key, value');
+    const s = {}; (settings || []).forEach(r => s[r.key] = r.value);
+    document.getElementById('bank-name').textContent = s.deposit_bank_name || 'Contact support';
+    document.getElementById('acct-number').textContent = s.deposit_account_number || '—';
+    document.getElementById('acct-name').textContent = s.deposit_account_name || '—';
+
+    window.submitDeposit = async () => {
+      const custom = Number(document.getElementById('custom-amount').value);
+      const amount = custom || selected;
+      if (!amount) return showToast('Select or enter an amount', 'error');
+      const sender = document.getElementById('sender-name').value.trim();
+      if (!sender) return showToast('Enter the sender name', 'error');
+
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i> Submitting...';
+
+      const res = await fetch('/api/finance?action=createDeposit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+        body: JSON.stringify({
+          amount,
+          sender_name: sender,
+          payment_method: document.getElementById('payment-method').value,
+          proof_ref: document.getElementById('proof-ref').value.trim() || null
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit for Verification';
+        return;
+      }
+      showToast('Deposit submitted! We\'ll verify it shortly.', 'gold');
+      setTimeout(() => location.href = '/dashboard.html', 1200);
+    };
+
+    // Recent deposits
+    const { data: deps } = await supabase.from('deposits').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5);
+    const box = document.getElementById('my-deposits');
+    if (!deps?.length) {
+      box.innerHTML = '<div class="empty-state"><i class="fa-solid fa-receipt"></i>No deposits yet</div>';
+    } else {
+      box.innerHTML = deps.map(d => `
+        <div class="list-row">
+          <div><b>₦${Number(d.amount).toLocaleString()}</b><div class="muted" style="font-size:.72rem;">${new Date(d.created_at).toLocaleDateString()}</div></div>
+          <span class="badge ${d.status === 'completed' ? 'badge-mint' : d.status === 'pending' ? 'badge-amber' : 'badge-red'}">${d.status}</span>
+        </div>`).join('');
+    }
+  </script>
+</body>
+</html>
