@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>APM — Wallet</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .txn-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+    .txn-row:last-child { border-bottom: none; }
+    .txn-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; font-size: .95rem; flex-shrink: 0; }
+    .txn-info { flex: 1; min-width: 0; }
+    .txn-title { font-weight: 700; font-size: .88rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .txn-date { font-size: .72rem; color: var(--muted); }
+    .txn-amount { font-family: 'Sora'; font-weight: 800; font-size: .92rem; }
+    .txn-amount.plus { color: var(--primary); }
+    .txn-amount.minus { color: var(--danger); }
+    .txn-amount.wait { color: var(--warning); }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <div class="page">
+    <h1 class="page-title">Wallet</h1>
+    <p class="page-sub">All your money movements in one place.</p>
+
+    <div class="hero-card">
+      <div class="hero-label">Available Balance</div>
+      <div class="hero-amount" id="balance">₦0</div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card"><div class="stat-value mint" id="total-in">₦0</div><div class="stat-label">Total In</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--danger);" id="total-out">₦0</div><div class="stat-label">Total Out</div></div>
+    </div>
+
+    <div class="section-title"><i class="fa-solid fa-receipt"></i> Transaction History</div>
+    <div class="card" id="txn-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
+  </div>
+  <div id="footer-container"></div>
+
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    const user = await requireAuth();
+
+    const META = {
+      task_claim:          ['fa-solid fa-hand-pointer', 'var(--primary-dim)', 'var(--primary)'],
+      deposit:             ['fa-solid fa-arrow-down',   'var(--primary-dim)', 'var(--primary)'],
+      withdrawal:          ['fa-solid fa-arrow-up',     'rgba(255,176,32,.15)', 'var(--warning)'],
+      referral_commission: ['fa-solid fa-users',        'var(--gold-dim)', 'var(--gold)'],
+      wealth_return:       ['fa-solid fa-gem',          'var(--gold-dim)', 'var(--gold)'],
+      wealth_invest:       ['fa-solid fa-gem',          'rgba(255,176,32,.15)', 'var(--warning)'],
+      membership_upgrade:  ['fa-solid fa-crown',        'var(--gold-dim)', 'var(--gold)'],
+      admin_credit:        ['fa-solid fa-user-shield',  'var(--primary-dim)', 'var(--primary)'],
+      admin_debit:         ['fa-solid fa-user-shield',  'rgba(255,90,90,.15)', 'var(--danger)']
+    };
+    const IN_TYPES = ['task_claim', 'deposit', 'referral_commission', 'wealth_return', 'admin_credit'];
+    const OUT_TYPES = ['withdrawal', 'membership_upgrade', 'wealth_invest', 'admin_debit'];
+
+    const [walletR, txnR] = await Promise.all([
+      supabase.from('wallets').select('balance').eq('user_id', user.id).single(),
+      supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100)
+    ]);
+
+    document.getElementById('balance').textContent = `₦${Number(walletR.data?.balance || 0).toLocaleString()}`;
+
+    const txns = txnR.data || [];
+    const sum = (types) => txns.filter(t => types.includes(t.type) && t.status === 'approved')
+      .reduce((s, t) => s + Number(t.amount), 0);
+    document.getElementById('total-in').textContent = `₦${sum(IN_TYPES).toLocaleString()}`;
+    document.getElementById('total-out').textContent = `₦${sum(OUT_TYPES).toLocaleString()}`;
+
+    const list = document.getElementById('txn-list');
+    if (!txns.length) {
+      list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-receipt"></i>No transactions yet</div>';
+    } else {
+      list.innerHTML = txns.map(t => {
+        const [icon, bg, color] = META[t.type] || META.task_claim;
+        const pending = t.status === 'pending';
+        const rejected = t.status === 'rejected';
+        const negative = OUT_TYPES.includes(t.type);
+        const cls = pending ? 'wait' : rejected ? 'minus' : (negative ? 'minus' : 'plus');
+        const sign = pending ? '' : (negative ? '-' : '+');
+        return `
+          <div class="txn-row">
+            <div class="txn-icon" style="background:${bg};color:${color};"><i class="${icon}"></i></div>
+            <div class="txn-info">
+              <div class="txn-title">${t.description || t.type.replace(/_/g, ' ')}</div>
+              <div class="txn-date">${new Date(t.created_at).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} • ${t.status}</div>
+            </div>
+            <div class="txn-amount ${cls}">${sign}₦${Number(t.amount).toLocaleString()}</div>
+          </div>`;
+      }).join('');
+    }
+  </script>
+</body>
+</html>
