@@ -46,99 +46,124 @@
     const today = new Date().toISOString().slice(0, 10);
 
     async function load() {
-      const [pkgR, invR] = await Promise.all([
-        supabase.from('wealth_packages').select('*').eq('is_active', true).order('investment_amount', { ascending: true }),
-        supabase.from('wealth_investments').select('*, wealth_packages(name, daily_return, duration_days)').eq('user_id', user.id).order('created_at', { ascending: false })
-      ]);
+      try {
+        const [pkgR, invR] = await Promise.all([
+          supabase.from('wealth_packages').select('*').eq('is_active', true).order('investment_amount', { ascending: true }),
+          supabase.from('wealth_investments').select('*, wealth_packages(name, daily_return, duration_days)').eq('user_id', user.id).order('created_at', { ascending: false })
+        ]);
 
-      // Available plans
-      const pkgBox = document.getElementById('pkg-list');
-      const pkgs = (pkgR.data || []).filter(p => (!p.start_date || today >= p.start_date) && (!p.end_date || today <= p.end_date));
-      if (!pkgs.length) {
-        pkgBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-gem"></i>No plans open right now</div>';
-      } else {
-        pkgBox.innerHTML = pkgs.map(p => {
-          const roi = Math.round((Number(p.total_return) / Number(p.investment_amount) - 1) * 100);
-          return `
-            <div class="pkg-card">
-              <div class="pkg-name">${p.name} <span class="badge badge-gold">+${roi}% ROI</span></div>
-              <div class="pkg-grid">
-                <div class="pkg-cell"><b>₦${Number(p.investment_amount).toLocaleString()}</b><span>Invest</span></div>
-                <div class="pkg-cell gold"><b>₦${Number(p.daily_return).toLocaleString()}</b><span>Daily</span></div>
-                <div class="pkg-cell"><b>${p.duration_days}</b><span>Days</span></div>
-              </div>
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span class="muted" style="font-size:.8rem;">Total: <b class="mint">₦${Number(p.total_return).toLocaleString()}</b></span>
-                <button class="btn btn-primary btn-sm" onclick="invest('${p.id}', this)"><i class="fa-solid fa-gem"></i> Invest</button>
-              </div>
-            </div>`;
-        }).join('');
-      }
+        // Available plans (within availability window)
+        const pkgBox = document.getElementById('pkg-list');
+        const pkgs = (pkgR.data || []).filter(p => (!p.start_date || today >= p.start_date) && (!p.end_date || today <= p.end_date));
+        if (!pkgs.length) {
+          pkgBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-gem"></i>No plans open right now</div>';
+        } else {
+          pkgBox.innerHTML = pkgs.map(p => {
+            const roi = Math.round((Number(p.total_return) / Number(p.investment_amount) - 1) * 100);
+            return `
+              <div class="pkg-card">
+                <div class="pkg-name">${p.name} <span class="badge badge-gold">+${roi}% ROI</span></div>
+                <div class="pkg-grid">
+                  <div class="pkg-cell"><b>₦${Number(p.investment_amount).toLocaleString()}</b><span>Invest</span></div>
+                  <div class="pkg-cell gold"><b>₦${Number(p.daily_return).toLocaleString()}</b><span>Daily</span></div>
+                  <div class="pkg-cell"><b>${p.duration_days}</b><span>Days</span></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="muted" style="font-size:.8rem;">Total: <b class="mint">₦${Number(p.total_return).toLocaleString()}</b></span>
+                  <button class="btn btn-primary btn-sm" onclick="invest('${p.id}', this)"><i class="fa-solid fa-gem"></i> Invest</button>
+                </div>
+              </div>`;
+          }).join('');
+        }
 
-      // My investments
-      const invBox = document.getElementById('inv-list');
-      const invs = invR.data || [];
-      if (!invs.length) {
-        invBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No investments yet. Pick a plan above!</div>';
-      } else {
-        invBox.innerHTML = invs.map(i => {
-          const daysLeft = Math.max(0, Math.ceil((new Date(i.end_date) - new Date(today)) / 86400000));
-          const collected = i.last_payout_date === today;
-          const ended = i.status !== 'active' || today > i.end_date;
-          let btn;
-          if (ended) btn = '<span class="badge badge-gray">Completed</span>';
-          else if (collected) btn = '<button class="btn btn-sm btn-ghost" disabled><i class="fa-solid fa-check"></i> Collected</button>';
-          else btn = `<button class="btn btn-sm btn-primary" onclick="claimReturn('${i.id}', this)"><i class="fa-solid fa-coins"></i> Claim ₦${Number(i.wealth_packages?.daily_return || 0).toLocaleString()}</button>`;
-          return `
-            <div class="inv-row">
-              <div class="inv-info">
-                <div class="inv-name">${i.wealth_packages?.name || 'Plan'}</div>
-                <div class="inv-meta">${ended ? 'Plan ended' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`} • invested ₦${Number(i.amount).toLocaleString()}</div>
-              </div>
-              ${btn}
-            </div>`;
-        }).join('');
+        // My investments
+        const invBox = document.getElementById('inv-list');
+        const invs = invR.data || [];
+        if (!invs.length) {
+          invBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No investments yet. Pick a plan above!</div>';
+        } else {
+          invBox.innerHTML = invs.map(i => {
+            const daysLeft = Math.max(0, Math.ceil((new Date(i.end_date) - new Date(today)) / 86400000));
+            const collected = i.last_payout_date === today;
+            const ended = i.status !== 'active' || today > i.end_date;
+            let btn;
+            if (ended) btn = '<span class="badge badge-gray">Completed</span>';
+            else if (collected) btn = '<button class="btn btn-sm btn-ghost" disabled><i class="fa-solid fa-check"></i> Collected</button>';
+            else btn = `<button class="btn btn-sm btn-primary" onclick="claimReturn('${i.id}', this)"><i class="fa-solid fa-coins"></i> Claim ₦${Number(i.wealth_packages?.daily_return || 0).toLocaleString()}</button>`;
+            return `
+              <div class="inv-row">
+                <div class="inv-info">
+                  <div class="inv-name">${i.wealth_packages?.name || 'Plan'}</div>
+                  <div class="inv-meta">${ended ? 'Plan ended' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`} • invested ₦${Number(i.amount).toLocaleString()}</div>
+                </div>
+                ${btn}
+              </div>`;
+          }).join('');
+        }
+      } catch (err) {
+        console.error('[WEALTH] Load failed:', err);
+        document.getElementById('pkg-list').innerHTML = `
+          <div class="empty-state">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            ${err.message}
+            <br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Retry</button>
+          </div>`;
       }
     }
 
     window.invest = async (pkgId, btn) => {
       if (!confirm('Invest in this plan? The amount will be deducted from your wallet.')) return;
+      const original = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-      const res = await fetch('/api/finance?action=investWealth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ package_id: pkgId })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error, 'error');
+      try {
+        const res = await fetch('/api/finance?action=investWealth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ package_id: pkgId })
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        showToast('Investment active! Collect your first return tomorrow.', 'gold');
+        window.APMShell?.refresh();
+        load();
+      } catch (err) {
+        console.error('[WEALTH] Invest failed:', err);
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-gem"></i> Invest';
-        return;
+        btn.innerHTML = original;
       }
-      showToast('Investment active! Collect your first return tomorrow.', 'gold');
-      window.APMShell?.refresh();
-      load();
     };
 
     window.claimReturn = async (invId, btn) => {
+      const original = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-      const res = await fetch('/api/finance?action=claimWealthReturn', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ investment_id: invId })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error, 'error');
+      try {
+        const res = await fetch('/api/finance?action=claimWealthReturn', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ investment_id: invId })
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        showToast(`+₦${data.amount.toLocaleString()} daily return collected!`, 'gold');
+        window.APMShell?.refresh();
         load();
-        return;
+      } catch (err) {
+        console.error('[WEALTH] Claim failed:', err);
+        showToast(err.message, 'error');
+        btn.disabled = false;
+        btn.innerHTML = original;
       }
-      showToast(`+₦${data.amount.toLocaleString()} daily return collected!`, 'gold');
-      window.APMShell?.refresh();
-      load();
     };
 
     load();
