@@ -261,7 +261,11 @@
       return accessToken;
     };
     const api = async (action, opts = {}) => {
-      const res = await fetch(`/api/admin?action=${encodeURIComponent(action)}`, {
+      // Callers may append trusted, already-encoded query parameters (e.g. &search=...).
+      // Encode only the action name so those parameters stay visible to the API route.
+      const [actionName, ...extraParams] = String(action).split('&');
+      const endpoint = `/api/admin?action=${encodeURIComponent(actionName)}${extraParams.length ? `&${extraParams.join('&')}` : ''}`;
+      const res = await fetch(endpoint, {
         ...opts,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}`, ...(opts.headers || {}) }
       });
