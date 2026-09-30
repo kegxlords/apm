@@ -9,7 +9,8 @@
   <meta name="theme-color" content="#0B1210">
   <style>
     .tier-hero { text-align: center; background: linear-gradient(135deg, #241A06, #1A2C24); border: 1px solid rgba(245,197,24,.35); border-radius: 24px; padding: 26px; margin-bottom: 20px; }
-    .tier-hero .big { font-family: 'Sora'; font-size: 3rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(245,197,24,.4); }
+    .tier-hero .label { font-size: .78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+    .tier-hero .big { font-family: 'Sora'; font-size: 3rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(245,197,24,.4); margin: 6px 0; }
     .tier-row { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
     .tier-row.current { border-color: rgba(245,197,24,.5); box-shadow: 0 0 24px rgba(245,197,24,.12); }
     .tier-badge-lg { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-family: 'Sora'; font-weight: 800; font-size: 1rem; background: var(--gold-dim); color: var(--gold); flex-shrink: 0; }
@@ -26,7 +27,7 @@
     <p class="page-sub">Higher tier = richer daily tasks & bigger earnings.</p>
 
     <div class="tier-hero">
-      <div class="ref-label" style="font-size:.78rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:1px;">Current Tier</div>
+      <div class="label">Current Tier</div>
       <div class="big" id="current-tier">A0</div>
       <div class="muted" style="font-size:.85rem;" id="current-perks">Free member — basic tasks unlocked</div>
     </div>
@@ -46,74 +47,95 @@
     const ORDER = ['A0','A1','A2','A3','A4','A5','A6','A7'];
     const rank = t => ORDER.indexOf(t);
 
-    const [profileR, tiersR, tasksR] = await Promise.all([
-      supabase.from('profiles').select('tier').eq('id', user.id).single(),
-      supabase.from('apm_tiers').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
-      supabase.from('tasks').select('reward_amount, min_tier').eq('is_active', true)
-    ]);
+    async function load() {
+      const list = document.getElementById('tier-list');
+      list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tiers...</div>';
+      try {
+        const [profileR, tiersR, tasksR] = await Promise.all([
+          supabase.from('profiles').select('tier').eq('id', user.id).single(),
+          supabase.from('apm_tiers').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+          supabase.from('tasks').select('reward_amount, min_tier').eq('is_active', true)
+        ]);
 
-    const myTier = profileR.data?.tier || 'A0';
-    document.getElementById('current-tier').textContent = myTier;
+        const myTier = profileR.data?.tier || 'A0';
+        document.getElementById('current-tier').textContent = myTier;
 
-    // Per-tier task stats
-    const tierStats = (tier) => {
-      const unlocked = (tasksR.data || []).filter(t => rank(t.min_tier) <= rank(tier));
-      const maxReward = unlocked.reduce((m, t) => Math.max(m, Number(t.reward_amount)), 0);
-      const dailyTotal = unlocked.reduce((s, t) => s + Number(t.reward_amount), 0);
-      return { count: unlocked.length, maxReward, dailyTotal };
-    };
+        const tierStats = (tier) => {
+          const unlocked = (tasksR.data || []).filter(t => rank(t.min_tier) <= rank(tier));
+          const dailyTotal = unlocked.reduce((s, t) => s + Number(t.reward_amount), 0);
+          return { count: unlocked.length, dailyTotal };
+        };
 
-    const myStats = tierStats(myTier);
-    document.getElementById('current-perks').textContent =
-      `${myStats.count} tasks unlocked • up to ₦${myStats.dailyTotal.toLocaleString()}/day`;
+        const myStats = tierStats(myTier);
+        document.getElementById('current-perks').textContent =
+          `${myStats.count} tasks unlocked • up to ₦${myStats.dailyTotal.toLocaleString()}/day`;
 
-    const list = document.getElementById('tier-list');
-    const tiers = tiersR.data || [];
-    if (!tiers.length) {
-      list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-crown"></i>No tiers available</div>';
-    } else {
-      list.innerHTML = tiers.map(t => {
-        const stats = tierStats(t.tier);
-        const myRank = rank(myTier), tRank = rank(t.tier);
-        let action;
-        if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
-        else if (tRank === myRank) action = '<span class="badge badge-gold">Current</span>';
-        else action = `<button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Upgrade</button>`;
-        return `
-          <div class="tier-row ${tRank === myRank ? 'current' : ''}">
-            <div class="tier-badge-lg">${t.tier}</div>
-            <div class="tier-info">
-              <div class="tier-name">${t.description || t.tier + ' Member'}</div>
-              <div class="tier-meta">${stats.count} tasks • up to ₦${stats.dailyTotal.toLocaleString()}/day</div>
-            </div>
-            <div style="text-align:right;">
-              <div class="tier-cost">₦${Number(t.upgrade_cost).toLocaleString()}</div>
-              <div style="margin-top:6px;">${action}</div>
-            </div>
+        const tiers = tiersR.data || [];
+        if (!tiers.length) {
+          list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-crown"></i>No tiers available</div>';
+          return;
+        }
+
+        list.innerHTML = tiers.map(t => {
+          const stats = tierStats(t.tier);
+          const myRank = rank(myTier), tRank = rank(t.tier);
+          let action;
+          if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
+          else if (tRank === myRank) action = '<span class="badge badge-gold">Current</span>';
+          else action = `<button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Upgrade</button>`;
+          return `
+            <div class="tier-row ${tRank === myRank ? 'current' : ''}">
+              <div class="tier-badge-lg">${t.tier}</div>
+              <div class="tier-info">
+                <div class="tier-name">${t.description || t.tier + ' Member'}</div>
+                <div class="tier-meta">${stats.count} tasks • up to ₦${stats.dailyTotal.toLocaleString()}/day</div>
+              </div>
+              <div style="text-align:right;">
+                <div class="tier-cost">₦${Number(t.upgrade_cost).toLocaleString()}</div>
+                <div style="margin-top:6px;">${action}</div>
+              </div>
+            </div>`;
+        }).join('');
+      } catch (err) {
+        console.error('[MEMBERSHIP] Load failed:', err);
+        list.innerHTML = `
+          <div class="empty-state">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            ${err.message}
+            <br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Retry</button>
           </div>`;
-      }).join('');
+      }
     }
 
     window.upgrade = async (tier, btn) => {
       if (!confirm(`Upgrade to ${tier}? The cost will be deducted from your wallet.`)) return;
+      const original = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-      const res = await fetch('/api/finance?action=upgradeTier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ tier })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error, 'error');
+      try {
+        const res = await fetch('/api/finance?action=upgradeTier', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ tier })
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        showToast(`Welcome to ${tier}! New tasks unlocked 👑`, 'gold');
+        window.APMShell?.refresh();
+        setTimeout(() => location.reload(), 1200);
+      } catch (err) {
+        console.error('[MEMBERSHIP] Upgrade failed:', err);
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = 'Upgrade';
-        return;
+        btn.innerHTML = original;
       }
-      showToast(`Welcome to ${tier}! New tasks unlocked 👑`, 'gold');
-      window.APMShell?.refresh();
-      setTimeout(() => location.reload(), 1200);
     };
+
+    load();
   </script>
 </body>
 </html>
