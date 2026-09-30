@@ -28,8 +28,6 @@ export default async function handler(req, res) {
 // ==========================================
 // MANUAL DEPOSIT REQUEST
 // ==========================================
-async function createDeposit(req, res2, user, res) {} // placeholder removed
-
 async function createDeposit(req, user, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const profile = await getProfile(user.id);
@@ -55,26 +53,30 @@ async function createDeposit(req, user, res) {
 }
 
 // ==========================================
-// WITHDRAWAL ELIGIBILITY
+// WITHDRAWAL ELIGIBILITY (shared helper)
 // ==========================================
-async function getWithdrawalEligibility(user, res) {
+async function checkWithdrawalEligibility(user) {
   const profile = await getProfile(user.id);
-  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  if (!profile) return { can_withdraw_now: false, reason_blocked: 'Profile not found' };
 
   const min = Number(await getSetting('min_withdrawal', '1000'));
   const fee = Number(await getSetting('withdrawal_fee_percentage', '0'));
 
-  if (profile.is_frozen) return res.json({ can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee });
-  if (profile.tier === 'A0') return res.json({ can_withdraw_now: false, reason_blocked: 'Upgrade to A1 or higher to withdraw.', min, fee });
+  if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee };
+  if (profile.tier === 'A0') return { can_withdraw_now: false, reason_blocked: 'Upgrade to A1 or higher to withdraw.', min, fee };
 
   const { count } = await supabaseAdmin.from('withdrawals')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .gte('created_at', `${todayUTC()}T00:00:00.000Z`);
 
-  if (count > 0) return res.json({ can_withdraw_now: false, reason_blocked: 'You already requested a withdrawal today. Limit is 1 per day.', min, fee });
+  if (count > 0) return { can_withdraw_now: false, reason_blocked: 'You already requested a withdrawal today. Limit is 1 per day.', min, fee };
 
-  return res.json({ can_withdraw_now: true, tier: profile.tier, min, fee });
+  return { can_withdraw_now: true, tier: profile.tier, min, fee };
+}
+
+async function getWithdrawalEligibility(user, res) {
+  return res.json(await checkWithdrawalEligibility(user));
 }
 
 // ==========================================
@@ -83,7 +85,7 @@ async function getWithdrawalEligibility(user, res) {
 async function requestWithdrawal(req, user, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const elig = await new Promise(r => getWithdrawalEligibility(user, { json: r }));
+  const elig = await checkWithdrawalEligibility(user);
   if (!elig.can_withdraw_now) return res.status(400).json({ error: elig.reason_blocked });
 
   const { amount, bank_name, account_number, account_name } = req.body || {};
@@ -125,7 +127,7 @@ async function upgradeTier(req, user, res) {
   if (profile?.is_frozen) return res.status(403).json({ error: 'Account frozen' });
 
   const { tier } = req.body || {};
-  const ORDER = ['A0','A1','A2','A3','A4','A5','A6','A7'];
+  const ORDER = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'];
   const { data: tierRow } = await supabaseAdmin.from('apm_tiers').select('*').eq('tier', tier).eq('is_active', true).single();
   if (!tierRow) return res.status(404).json({ error: 'Tier not available' });
   if (ORDER.indexOf(tier) <= ORDER.indexOf(profile.tier)) return res.status(400).json({ error: 'You are already at or above this tier' });
@@ -138,7 +140,7 @@ async function upgradeTier(req, user, res) {
   await supabaseAdmin.from('profiles').update({ tier }).eq('id', user.id);
   await supabaseAdmin.from('transactions').insert({
     user_id: user.id, type: 'membership_upgrade', amount: cost, status: 'approved',
-    reference: `UPGRADE_${user.id.slice(0,8)}_${Date.now()}`, description: `Upgraded to ${tier}`
+    reference: `UPGRADE_${user.id.slice(0, 8)}_${Date.now()}`, description: `Upgraded to ${tier}`
   });
 
   return res.json({ ok: true, tier });
