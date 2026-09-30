@@ -253,17 +253,25 @@
     const admin = await requireAdmin();
     document.getElementById('admin-email').textContent = admin.email;
 
-    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+    const token = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      const accessToken = data.session?.access_token;
+      if (!accessToken) throw new Error('Your session has expired. Please sign in again.');
+      return accessToken;
+    };
     const api = async (action, opts = {}) => {
-      const res = await fetch(`/api/admin?action=${action}`, {
+      const res = await fetch(`/api/admin?action=${encodeURIComponent(action)}`, {
         ...opts,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}`, ...(opts.headers || {}) }
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      let data;
+      try { data = await res.json(); }
+      catch { throw new Error(`Admin API returned an invalid response (${res.status}).`); }
+      if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
       return data;
     };
-    window.logout = async () => { await supabase.auth.signOut(); location.href = '/login.html'; };
+    window.logout = async () => { try { await supabase.auth.signOut(); } finally { location.href = '/login.html'; } };
     window.closeModal = id => document.getElementById(id).classList.remove('active');
     window.showSection = (id, btn) => {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -272,18 +280,20 @@
       btn.classList.add('active');
       ({ dashboard: loadDashboard, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
     };
-    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
+    const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[ch]));
+    const jsArg = value => escapeHtml(JSON.stringify(String(value ?? '')));
+    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${escapeHtml(s || 'unknown')}</span>`;
 
     // ===== DASHBOARD =====
     async function loadDashboard() {
       const s = await api('get-dashboard-stats');
       document.getElementById('s-users').textContent = s.users;
-      document.getElementById('s-deposits').textContent = `₦${s.totalDeposits.toLocaleString()}`;
+      document.getElementById('s-deposits').textContent = `₦${(Number(s.totalDeposits) || 0).toLocaleString()}`;
       document.getElementById('s-pend-dep').textContent = s.pendingDeposits;
       document.getElementById('s-pend-wd').textContent = s.pendingWithdrawals;
-      document.getElementById('s-withdrawals').textContent = `₦${s.totalWithdrawals.toLocaleString()}`;
+      document.getElementById('s-withdrawals').textContent = `₦${(Number(s.totalWithdrawals) || 0).toLocaleString()}`;
       document.getElementById('s-tasks').textContent = s.tasksToday;
-      document.getElementById('s-comm').textContent = `₦${s.totalCommissions.toLocaleString()}`;
+      document.getElementById('s-comm').textContent = `₦${(Number(s.totalCommissions) || 0).toLocaleString()}`;
     }
 
     // ===== DEPOSITS =====
@@ -291,14 +301,14 @@
       const { deposits } = await api(`get-deposits&status=${document.getElementById('dep-filter').value}`);
       document.getElementById('dep-table').innerHTML = deposits.length ? deposits.map(d => `
         <tr>
-          <td><b>${d.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${d.profiles?.email}</div></td>
+          <td><b>${escapeHtml(d.profiles?.full_name || '—')}</b><div class="muted" style="font-size:.72rem;">${escapeHtml(d.profiles?.email || '')}</div></td>
           <td class="mint" style="font-weight:800;">₦${Number(d.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${d.sender_name || '—'}<div class="muted" style="font-size:.7rem;">${d.proof_ref || d.payment_method || ''}</div></td>
+          <td style="font-size:.8rem;">${escapeHtml(d.sender_name || '—')}<div class="muted" style="font-size:.7rem;">${escapeHtml(d.proof_ref || d.payment_method || '')}</div></td>
           <td>${badge(d.status)}</td>
           <td style="font-size:.78rem;">${new Date(d.created_at).toLocaleDateString()}</td>
           <td>${d.status === 'pending' ? `<div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="processDeposit('${d.id}','approve')">Approve</button>
-            <button class="btn btn-danger btn-sm" onclick="processDeposit('${d.id}','reject')">Reject</button></div>` : '—'}</td>
+            <button class="btn btn-primary btn-sm" onclick="processDeposit(${jsArg(d.id)},'approve')">Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="processDeposit(${jsArg(d.id)},'reject')">Reject</button></div>` : '—'}</td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No deposits</td></tr>';
     };
     window.processDeposit = async (id, act) => {
@@ -315,14 +325,14 @@
       const { withdrawals } = await api(`get-withdrawals&status=${document.getElementById('wd-filter').value}`);
       document.getElementById('wd-table').innerHTML = withdrawals.length ? withdrawals.map(w => `
         <tr>
-          <td><b>${w.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${w.profiles?.email}</div></td>
+          <td><b>${escapeHtml(w.profiles?.full_name || '—')}</b><div class="muted" style="font-size:.72rem;">${escapeHtml(w.profiles?.email || '')}</div></td>
           <td style="font-weight:800;color:var(--warning);">₦${Number(w.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${w.bank_name}<div class="muted" style="font-size:.72rem;">${w.account_number} • ${w.account_name}</div></td>
+          <td style="font-size:.8rem;">${escapeHtml(w.bank_name || '—')}<div class="muted" style="font-size:.72rem;">${escapeHtml(w.account_number || '')} • ${escapeHtml(w.account_name || '')}</div></td>
           <td>${badge(w.status)}</td>
           <td style="font-size:.78rem;">${new Date(w.created_at).toLocaleDateString()}</td>
           <td>${w.status === 'pending' ? `<div class="action-row">
-            <button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Pay</button>
-            <button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : '—'}</td>
+            <button class="btn btn-gold btn-sm" onclick="processWithdrawal(${jsArg(w.id)},'approve')">Pay</button>
+            <button class="btn btn-danger btn-sm" onclick="processWithdrawal(${jsArg(w.id)},'reject')">Reject</button></div>` : '—'}</td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No withdrawals</td></tr>';
     };
     window.processWithdrawal = async (id, act) => {
@@ -340,14 +350,14 @@
       const { users } = await api(`get-users&search=${encodeURIComponent(document.getElementById('user-search').value || '')}`);
       document.getElementById('users-table').innerHTML = users.length ? users.map(u => `
         <tr>
-          <td style="font-size:.82rem;">${u.email}</td>
-          <td>${u.full_name || '—'}</td>
-          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span></td>
-          <td class="mint" style="font-weight:700;">₦${Number(u.wallets?.[0]?.balance || 0).toLocaleString()}</td>
+          <td style="font-size:.82rem;">${escapeHtml(u.email || '')}</td>
+          <td>${escapeHtml(u.full_name || '—')}</td>
+          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${escapeHtml(u.tier || 'A0')}</span></td>
+          <td class="mint" style="font-weight:700;">₦${Number((Array.isArray(u.wallets) ? u.wallets[0]?.balance : u.wallets?.balance) || 0).toLocaleString()}</td>
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
-            <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="openUser(${jsArg(u.id)},${jsArg(u.email)},${Number((Array.isArray(u.wallets) ? u.wallets[0]?.balance : u.wallets?.balance) || 0)},${jsArg(u.tier)},${Boolean(u.is_frozen)})">Manage</button>
+            <button class="btn btn-ghost btn-sm" onclick="openMsg(${jsArg(u.id)},${jsArg(u.email)})"><i class="fa-solid fa-envelope"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
     };
@@ -395,16 +405,16 @@
       tasksCache = tasks;
       document.getElementById('tasks-table').innerHTML = tasks.length ? tasks.map(t => `
         <tr>
-          <td><i class="${t.icon}" style="color:var(--primary);margin-right:8px;"></i><b>${t.title}</b></td>
+          <td><i class="${escapeHtml(t.icon || '')}" style="color:var(--primary);margin-right:8px;"></i><b>${escapeHtml(t.title || '')}</b></td>
           <td class="gold" style="font-weight:800;">₦${Number(t.reward_amount).toLocaleString()}</td>
-          <td><span class="badge badge-gray">${t.min_tier}</span></td>
+          <td><span class="badge badge-gray">${escapeHtml(t.min_tier || 'A0')}</span></td>
           <td>${t.frequency === 'once' ? '<span class="badge badge-amber">one-time</span>' : '<span class="badge badge-mint">daily</span>'}</td>
           <td>${t.claims.today} / ${t.claims.total}</td>
           <td>${t.is_active ? '<span class="badge badge-mint">Active</span>' : '<span class="badge badge-amber">Paused</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openTaskModal('${t.id}')"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-ghost btn-sm" onclick="toggleTask('${t.id}', ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
-            <button class="btn btn-danger btn-sm" onclick="delTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="openTaskModal(${jsArg(t.id)})"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleTask(${jsArg(t.id)}, ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
+            <button class="btn btn-danger btn-sm" onclick="delTask(${jsArg(t.id)})"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
     }
@@ -455,12 +465,12 @@
       const { tiers } = await api('get-tiers');
       document.getElementById('tiers-table').innerHTML = tiers.map(t => `
         <tr>
-          <td><span class="badge badge-gold">${t.tier}</span></td>
+          <td><span class="badge badge-gold">${escapeHtml(t.tier)}</span></td>
           <td>${t.members}</td>
           <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}"></td>
-          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${t.description || ''}"></td>
+          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${escapeHtml(t.description || '')}"></td>
           <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;"></td>
-          <td><button class="btn btn-primary btn-sm" onclick="saveTier('${t.tier}')"><i class="fa-solid fa-save"></i></button></td>
+          <td><button class="btn btn-primary btn-sm" onclick="saveTier(${jsArg(t.tier)})"><i class="fa-solid fa-save"></i></button></td>
         </tr>`).join('');
     }
     window.saveTier = async (tier) => {
@@ -482,22 +492,22 @@
       pkgCache = packages;
       document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => `
         <tr>
-          <td><b>${p.name}</b></td>
+          <td><b>${escapeHtml(p.name || '')}</b></td>
           <td class="mint">₦${Number(p.investment_amount).toLocaleString()}</td>
           <td class="gold">₦${Number(p.daily_return).toLocaleString()}</td>
           <td>${p.duration_days}</td>
           <td>${badge(p.is_active ? 'active' : 'rejected')}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="editPackage('${p.id}')"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-danger btn-sm" onclick="delPackage('${p.id}')"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="editPackage(${jsArg(p.id)})"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-danger btn-sm" onclick="delPackage(${jsArg(p.id)})"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
       document.getElementById('inv-table').innerHTML = investments.length ? investments.map(i => `
         <tr>
-          <td style="font-size:.82rem;">${i.profiles?.email || '—'}</td>
-          <td>${i.wealth_packages?.name || '—'}</td>
+          <td style="font-size:.82rem;">${escapeHtml(i.profiles?.email || '—')}</td>
+          <td>${escapeHtml(i.wealth_packages?.name || '—')}</td>
           <td class="mint">₦${Number(i.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${i.end_date}</td>
+          <td style="font-size:.8rem;">${escapeHtml(i.end_date || '—')}</td>
           <td>${badge(i.status === 'active' ? 'active' : i.status)}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:30px;" class="muted">No investments yet</td></tr>';
     }
@@ -556,7 +566,7 @@
       catch (e) { showToast(e.message, 'error'); }
     };
 
-    loadDashboard();
+    loadDashboard().catch(error => { if (typeof showToast === 'function') showToast(error.message || 'Could not load dashboard', 'error'); });
   </script>
 </body>
 </html>
