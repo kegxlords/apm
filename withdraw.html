@@ -9,7 +9,7 @@
   <meta name="theme-color" content="#0B1210">
   <style>
     .amount-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 16px; }
-    .amount-btn { padding: 14px; background: var(--surface); border: 2px solid var(--border); border-radius: 14px; color: var(--text); font-weight: 700; cursor: pointer; }
+    .amount-btn { padding: 14px; background: var(--surface); border: 2px solid var(--border); border-radius: 14px; color: var(--text); font-weight: 700; cursor: pointer; transition: all .15s; }
     .amount-btn.active { border-color: var(--gold); background: var(--gold-dim); color: var(--gold); }
     .amount-btn:disabled { opacity: .35; cursor: not-allowed; }
     .fee-row { display: flex; justify-content: space-between; padding: 12px 14px; background: rgba(0,0,0,.25); border-radius: 12px; margin-bottom: 8px; font-size: .88rem; }
@@ -17,6 +17,7 @@
     .rules-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-top: 20px; }
     .rules-card h4 { color: var(--gold); font-size: .92rem; margin-bottom: 10px; display: flex; gap: 8px; align-items: center; }
     .rules-card li { color: var(--muted); font-size: .82rem; margin-left: 18px; margin-bottom: 6px; }
+    .rules-card li b.mint { color: var(--primary); }
   </style>
 </head>
 <body>
@@ -43,7 +44,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Or enter custom amount (₦)</label>
-      <input type="number" id="custom-amount" class="input" placeholder="Minimum ₦1,000">
+      <input type="number" id="custom-amount" class="input" placeholder="Loading minimum...">
     </div>
 
     <div class="fee-row"><span class="muted">Processing fee (<span id="fee-pct">0</span>%)</span><b id="fee-amt" style="color:var(--warning);">-₦0</b></div>
@@ -77,6 +78,8 @@
     <div class="rules-card">
       <h4><i class="fa-solid fa-circle-info"></i> Withdrawal Rules</h4>
       <ul>
+        <li>Minimum withdrawal: <b class="mint min-label">—</b> <span class="muted">(set by admin)</span></li>
+        <li>Processing fee: <b class="mint" id="fee-pct-rule">0</b>%</li>
         <li>Available to <b class="gold">A1 – A7</b> members only</li>
         <li>Maximum <b>1 request per day</b></li>
         <li>Processed manually by our team within 24 hours</li>
@@ -93,53 +96,80 @@
     const user = await requireAuth();
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
 
-    let selected = null, feePct = 0, minAmt = 1000, canWithdraw = false;
+    let selected = null, feePct = 0, minAmt = 0, canWithdraw = false, balance = 0;
 
+    // ===== Load balance =====
     const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
-    const balance = Number(wallet?.balance || 0);
+    balance = Number(wallet?.balance || 0);
     document.getElementById('balance').textContent = `₦${balance.toLocaleString()}`;
 
-    // Eligibility
-    const eligRes = await fetch('/api/finance?action=getWithdrawalEligibility', { headers: { Authorization: `Bearer ${await token()}` } });
-    const elig = await eligRes.json();
-    canWithdraw = elig.can_withdraw_now;
-    feePct = Number(elig.fee || 0);
-    minAmt = Number(elig.min || 1000);
-    document.getElementById('fee-pct').textContent = feePct;
+    // ===== Load admin-set rules (min withdrawal + fee %) =====
+    try {
+      const res = await fetch('/api/finance?action=getWithdrawalEligibility', { headers: { Authorization: `Bearer ${await token()}` } });
+      const text = await res.text();
+      let elig;
+      try { elig = JSON.parse(text); }
+      catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+      if (!res.ok) throw new Error(elig.error || `HTTP ${res.status}`);
 
-    const alertBox = document.getElementById('elig-alert');
-    if (!canWithdraw) {
-      alertBox.innerHTML = `<div class="card" style="border-color:rgba(255,90,90,.4); background:rgba(255,90,90,.08);"><span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> ${elig.reason_blocked}</span></div>`;
-      document.querySelectorAll('.amount-btn, #submit-btn, .input, .select').forEach(el => el.disabled = true);
+      canWithdraw = elig.can_withdraw_now;
+      feePct = Number(elig.fee || 0);
+      minAmt = Number(elig.min || 0);
+
+      // Paint admin settings everywhere
+      document.querySelectorAll('.min-label').forEach(el => el.textContent = `₦${minAmt.toLocaleString()}`);
+      document.getElementById('custom-amount').placeholder = `Minimum ₦${minAmt.toLocaleString()}`;
+      document.getElementById('fee-pct').textContent = feePct;
+      document.getElementById('fee-pct-rule').textContent = feePct;
+
+      if (!canWithdraw) {
+        document.getElementById('elig-alert').innerHTML = `
+          <div class="card" style="border-color:rgba(255,90,90,.4); background:rgba(255,90,90,.08);">
+            <span class="badge badge-red"><i class="fa-solid fa-circle-exclamation"></i> ${elig.reason_blocked}</span>
+          </div>`;
+        document.querySelectorAll('.amount-btn, #submit-btn, .input, .select').forEach(el => el.disabled = true);
+      }
+    } catch (err) {
+      console.error('[WITHDRAW] Eligibility load failed:', err);
+      document.getElementById('elig-alert').innerHTML = `
+        <div class="card" style="border-color:rgba(255,90,90,.4); background:rgba(255,90,90,.08);">
+          <span class="badge badge-red"><i class="fa-solid fa-triangle-exclamation"></i> ${err.message}</span>
+        </div>`;
     }
 
-    // Amount picking + fee calc
+    // ===== Amount picking + fee calc =====
+    function currentAmount() {
+      return Number(document.getElementById('custom-amount').value) || selected || 0;
+    }
     function recalc() {
-      const custom = Number(document.getElementById('custom-amount').value);
-      const amt = custom || selected || 0;
-      const fee = Math.round(amt * feePct) / 100 * 100 / 100; // fee = amt * pct/100
-      const feeReal = Math.round(amt * feePct) / 100;
-      document.getElementById('fee-amt').textContent = `-₦${feeReal.toLocaleString()}`;
-      document.getElementById('net-amt').textContent = `₦${(amt - feeReal).toLocaleString()}`;
+      const amt = currentAmount();
+      const fee = Math.round(amt * feePct) / 100;
+      document.getElementById('fee-amt').textContent = `-₦${fee.toLocaleString()}`;
+      document.getElementById('net-amt').textContent = `₦${(amt - fee).toLocaleString()}`;
     }
+
     document.querySelectorAll('.amount-btn').forEach(btn => {
+      const amt = Number(btn.dataset.amt);
+      // Disable buttons below admin minimum or above balance
+      if (amt < minAmt) { btn.disabled = true; btn.title = `Below minimum (₦${minAmt.toLocaleString()})`; }
+      else if (amt > balance) { btn.disabled = true; btn.title = 'Insufficient balance'; }
       btn.addEventListener('click', () => {
-        selected = Number(btn.dataset.amt);
+        selected = amt;
         document.getElementById('custom-amount').value = '';
         document.querySelectorAll('.amount-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         recalc();
       });
-      if (Number(btn.dataset.amt) > balance) btn.disabled = true;
     });
     document.getElementById('custom-amount').addEventListener('input', () => { selected = null; recalc(); });
 
+    // ===== Submit =====
     window.submitWithdrawal = async () => {
       if (!canWithdraw) return showToast('You are not eligible to withdraw right now', 'error');
-      const custom = Number(document.getElementById('custom-amount').value);
-      const amount = custom || selected;
+      const amount = currentAmount();
       if (!amount || amount < minAmt) return showToast(`Minimum withdrawal is ₦${minAmt.toLocaleString()}`, 'error');
       if (amount > balance) return showToast('Insufficient balance', 'error');
+
       const bank = document.getElementById('bank-name').value;
       const acct = document.getElementById('account-number').value.trim();
       const acctName = document.getElementById('account-name').value.trim();
@@ -147,23 +177,30 @@
       if (!/^\d{10}$/.test(acct)) return showToast('Account number must be 10 digits', 'error');
 
       const btn = document.getElementById('submit-btn');
+      const original = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i> Submitting...';
 
-      const res = await fetch('/api/finance?action=requestWithdrawal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({ amount, bank_name: bank, account_number: acct, account_name: acctName })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error, 'error');
+      try {
+        const res = await fetch('/api/finance?action=requestWithdrawal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({ amount, bank_name: bank, account_number: acct, account_name: acctName })
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        showToast('Withdrawal requested! Our team will process it shortly.', 'gold');
+        setTimeout(() => location.href = '/dashboard.html', 1200);
+      } catch (err) {
+        console.error('[WITHDRAW] Submit failed:', err);
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Request Withdrawal';
-        return;
+        btn.innerHTML = original;
       }
-      showToast('Withdrawal requested! Our team will process it shortly.', 'gold');
-      setTimeout(() => location.href = '/dashboard.html', 1200);
     };
   </script>
 </body>
