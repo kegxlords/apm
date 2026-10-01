@@ -60,10 +60,10 @@
       </table></div>
     </section>
 
-    <!-- WITHDRAWALS -->
+    <!-- WITHDRAWALS (with fee calculation) -->
     <section id="withdrawals" class="section">
       <h2 class="section-title"><i class="fa-solid fa-arrow-up"></i>Withdrawals</h2>
-      <div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i>Approve = you pay manually from your bank. Reject = instant auto-refund.</div>
+      <div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i>Fee: <b id="fee-notice-pct">0</b>% — pay the <b>NET</b> amount shown below from your bank. Reject = instant auto-refund of the gross amount.</div>
       <div class="filter-bar">
         <select class="select" id="wd-filter" onchange="loadWithdrawals()">
           <option value="pending">Pending</option><option value="approved">Approved</option>
@@ -71,7 +71,7 @@
         </select>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>User</th><th>Amount</th><th>Bank / Account</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+        <thead><tr><th>User</th><th>Gross</th><th>Fee / Net to Pay</th><th>Bank / Account</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
         <tbody id="wd-table"></tbody>
       </table></div>
     </section>
@@ -253,29 +253,30 @@
     const admin = await requireAdmin();
     document.getElementById('admin-email').textContent = admin.email;
 
-    const token = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (error) throw error;
-      const accessToken = data.session?.access_token;
-      if (!accessToken) throw new Error('Your session has expired. Please sign in again.');
-      return accessToken;
-    };
+    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
     const api = async (action, opts = {}) => {
-      // Callers may append trusted, already-encoded query parameters (e.g. &search=...).
-      // Encode only the action name so those parameters stay visible to the API route.
-      const [actionName, ...extraParams] = String(action).split('&');
-      const endpoint = `/api/admin?action=${encodeURIComponent(actionName)}${extraParams.length ? `&${extraParams.join('&')}` : ''}`;
-      const res = await fetch(endpoint, {
+      const res = await fetch(`/api/admin?action=${action}`, {
         ...opts,
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}`, ...(opts.headers || {}) }
       });
-      let data;
-      try { data = await res.json(); }
-      catch { throw new Error(`Admin API returned an invalid response (${res.status}).`); }
-      if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
       return data;
     };
-    window.logout = async () => { try { await supabase.auth.signOut(); } finally { location.href = '/login.html'; } };
+    const money = n => `₦${Number(n).toLocaleString()}`;
+    let FEE_PCT = 0;
+    let wdCache = [];
+
+    // Load fee % once at startup so Withdrawals tab can calculate immediately
+    async function refreshFee() {
+      try {
+        const { settings } = await api('get-settings');
+        FEE_PCT = Number(settings.withdrawal_fee_percentage || 0);
+        document.getElementById('fee-notice-pct').textContent = FEE_PCT;
+      } catch (e) { console.error('[ADMIN] fee load failed:', e); }
+    }
+
+    window.logout = async () => { await supabase.auth.signOut(); location.href = '/login.html'; };
     window.closeModal = id => document.getElementById(id).classList.remove('active');
     window.showSection = (id, btn) => {
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -284,20 +285,18 @@
       btn.classList.add('active');
       ({ dashboard: loadDashboard, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
     };
-    const escapeHtml = value => String(value ?? '').replace(/[&<>\"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '\"':'&quot;', "'":'&#39;' }[ch]));
-    const jsArg = value => escapeHtml(JSON.stringify(String(value ?? '')));
-    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${escapeHtml(s || 'unknown')}</span>`;
+    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
 
     // ===== DASHBOARD =====
     async function loadDashboard() {
       const s = await api('get-dashboard-stats');
       document.getElementById('s-users').textContent = s.users;
-      document.getElementById('s-deposits').textContent = `₦${(Number(s.totalDeposits) || 0).toLocaleString()}`;
+      document.getElementById('s-deposits').textContent = money(s.totalDeposits);
       document.getElementById('s-pend-dep').textContent = s.pendingDeposits;
       document.getElementById('s-pend-wd').textContent = s.pendingWithdrawals;
-      document.getElementById('s-withdrawals').textContent = `₦${(Number(s.totalWithdrawals) || 0).toLocaleString()}`;
+      document.getElementById('s-withdrawals').textContent = money(s.totalWithdrawals);
       document.getElementById('s-tasks').textContent = s.tasksToday;
-      document.getElementById('s-comm').textContent = `₦${(Number(s.totalCommissions) || 0).toLocaleString()}`;
+      document.getElementById('s-comm').textContent = money(s.totalCommissions);
     }
 
     // ===== DEPOSITS =====
@@ -305,45 +304,60 @@
       const { deposits } = await api(`get-deposits&status=${document.getElementById('dep-filter').value}`);
       document.getElementById('dep-table').innerHTML = deposits.length ? deposits.map(d => `
         <tr>
-          <td><b>${escapeHtml(d.profiles?.full_name || '—')}</b><div class="muted" style="font-size:.72rem;">${escapeHtml(d.profiles?.email || '')}</div></td>
-          <td class="mint" style="font-weight:800;">₦${Number(d.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${escapeHtml(d.sender_name || '—')}<div class="muted" style="font-size:.7rem;">${escapeHtml(d.proof_ref || d.payment_method || '')}</div></td>
+          <td><b>${d.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${d.profiles?.email}</div></td>
+          <td class="mint" style="font-weight:800;">${money(d.amount)}</td>
+          <td style="font-size:.8rem;">${d.sender_name || '—'}<div class="muted" style="font-size:.7rem;">${d.proof_ref || d.payment_method || ''}</div></td>
           <td>${badge(d.status)}</td>
           <td style="font-size:.78rem;">${new Date(d.created_at).toLocaleDateString()}</td>
           <td>${d.status === 'pending' ? `<div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="processDeposit(${jsArg(d.id)},'approve')">Approve</button>
-            <button class="btn btn-danger btn-sm" onclick="processDeposit(${jsArg(d.id)},'reject')">Reject</button></div>` : '—'}</td>
+            <button class="btn btn-primary btn-sm" onclick="processDeposit('${d.id}','approve')">Approve</button>
+            <button class="btn btn-danger btn-sm" onclick="processDeposit('${d.id}','reject')">Reject</button></div>` : '—'}</td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No deposits</td></tr>';
     };
     window.processDeposit = async (id, act) => {
       if (!confirm(`${act.toUpperCase()} this deposit?`)) return;
       try {
         const r = await api('process-deposit', { method: 'POST', body: JSON.stringify({ deposit_id: id, act }) });
-        showToast(act === 'approve' ? `Approved! ₦${r.credited.toLocaleString()} credited${r.commission?.paid ? ` + ₦${r.commission.amount.toLocaleString()} commission` : ''}` : 'Deposit rejected', act === 'approve' ? 'success' : 'error');
+        showToast(act === 'approve' ? `Approved! ${money(r.credited)} credited${r.commission?.paid ? ` + ${money(r.commission.amount)} commission` : ''}` : 'Deposit rejected', act === 'approve' ? 'success' : 'error');
         loadDeposits(); loadDashboard();
       } catch (e) { showToast(e.message, 'error'); }
     };
 
-    // ===== WITHDRAWALS =====
+    // ===== WITHDRAWALS (FEE CALCULATION) =====
     window.loadWithdrawals = async () => {
       const { withdrawals } = await api(`get-withdrawals&status=${document.getElementById('wd-filter').value}`);
-      document.getElementById('wd-table').innerHTML = withdrawals.length ? withdrawals.map(w => `
+      wdCache = withdrawals;
+      document.getElementById('fee-notice-pct').textContent = FEE_PCT;
+      document.getElementById('wd-table').innerHTML = withdrawals.length ? withdrawals.map(w => {
+        const gross = Number(w.amount);
+        const fee = Math.round(gross * FEE_PCT) / 100;
+        const net = gross - fee;
+        return `
         <tr>
-          <td><b>${escapeHtml(w.profiles?.full_name || '—')}</b><div class="muted" style="font-size:.72rem;">${escapeHtml(w.profiles?.email || '')}</div></td>
-          <td style="font-weight:800;color:var(--warning);">₦${Number(w.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${escapeHtml(w.bank_name || '—')}<div class="muted" style="font-size:.72rem;">${escapeHtml(w.account_number || '')} • ${escapeHtml(w.account_name || '')}</div></td>
+          <td><b>${w.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${w.profiles?.email}</div></td>
+          <td style="font-weight:800;color:var(--warning);">${money(gross)}</td>
+          <td style="font-size:.8rem;"><span style="color:var(--danger);">-${money(fee)} (${FEE_PCT}%)</span><br><b class="mint">Pay: ${money(net)}</b></td>
+          <td style="font-size:.8rem;">${w.bank_name}<div class="muted" style="font-size:.72rem;">${w.account_number} • ${w.account_name}</div></td>
           <td>${badge(w.status)}</td>
           <td style="font-size:.78rem;">${new Date(w.created_at).toLocaleDateString()}</td>
           <td>${w.status === 'pending' ? `<div class="action-row">
-            <button class="btn btn-gold btn-sm" onclick="processWithdrawal(${jsArg(w.id)},'approve')">Pay</button>
-            <button class="btn btn-danger btn-sm" onclick="processWithdrawal(${jsArg(w.id)},'reject')">Reject</button></div>` : '—'}</td>
-        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No withdrawals</td></tr>';
+            <button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Pay ${money(net)}</button>
+            <button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : '—'}</td>
+        </tr>`;
+      }).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No withdrawals</td></tr>';
     };
     window.processWithdrawal = async (id, act) => {
-      if (!confirm(act === 'approve' ? 'Mark as PAID? You must send the money from your bank now.' : 'REJECT and auto-refund this user?')) return;
+      const w = wdCache.find(x => x.id === id);
+      const gross = Number(w?.amount || 0);
+      const fee = Math.round(gross * FEE_PCT) / 100;
+      const net = gross - fee;
+      const msg = act === 'approve'
+        ? `Mark as PAID?\nYou must send ${money(net)} to ${w?.account_name} (${w?.bank_name} ${w?.account_number}).\n(Gross ${money(gross)} − ${FEE_PCT}% fee = ${money(net)})`
+        : `REJECT and auto-refund ${money(gross)} to this user?`;
+      if (!confirm(msg)) return;
       try {
         await api('process-withdrawal', { method: 'POST', body: JSON.stringify({ withdrawal_id: id, act }) });
-        showToast(act === 'approve' ? 'Approved — complete the bank transfer manually' : 'Rejected & refunded', act === 'approve' ? 'gold' : 'error');
+        showToast(act === 'approve' ? `Approved — send ${money(net)} from your bank now` : 'Rejected & refunded', act === 'approve' ? 'gold' : 'error');
         loadWithdrawals(); loadDashboard();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -354,21 +368,21 @@
       const { users } = await api(`get-users&search=${encodeURIComponent(document.getElementById('user-search').value || '')}`);
       document.getElementById('users-table').innerHTML = users.length ? users.map(u => `
         <tr>
-          <td style="font-size:.82rem;">${escapeHtml(u.email || '')}</td>
-          <td>${escapeHtml(u.full_name || '—')}</td>
-          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${escapeHtml(u.tier || 'A0')}</span></td>
-          <td class="mint" style="font-weight:700;">₦${Number((Array.isArray(u.wallets) ? u.wallets[0]?.balance : u.wallets?.balance) || 0).toLocaleString()}</td>
+          <td style="font-size:.82rem;">${u.email}</td>
+          <td>${u.full_name || '—'}</td>
+          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span></td>
+          <td class="mint" style="font-weight:700;">${money(u.wallets?.[0]?.balance || 0)}</td>
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openUser(${jsArg(u.id)},${jsArg(u.email)},${Number((Array.isArray(u.wallets) ? u.wallets[0]?.balance : u.wallets?.balance) || 0)},${jsArg(u.tier)},${Boolean(u.is_frozen)})">Manage</button>
-            <button class="btn btn-ghost btn-sm" onclick="openMsg(${jsArg(u.id)},${jsArg(u.email)})"><i class="fa-solid fa-envelope"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
+            <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
     };
     window.openUser = (id, email, balance, tier, frozen) => {
       currentUserId = id;
       document.getElementById('m-email').textContent = email;
-      document.getElementById('m-balance').textContent = `₦${Number(balance).toLocaleString()}`;
+      document.getElementById('m-balance').textContent = money(balance);
       document.getElementById('m-tier').value = tier;
       document.getElementById('m-frozen').value = String(frozen);
       document.getElementById('user-modal').classList.add('active');
@@ -384,9 +398,9 @@
       if (!amount) return showToast('Enter amount', 'error');
       try {
         const r = await api('adjust-balance', { method: 'POST', body: JSON.stringify({ user_id: currentUserId, amount, type, reason: document.getElementById('m-reason').value }) });
-        showToast(`${type}ed! New balance ₦${r.new_balance.toLocaleString()}`, 'success');
+        showToast(`${type}ed! New balance ${money(r.new_balance)}`, 'success');
         document.getElementById('m-amount').value = ''; document.getElementById('m-reason').value = '';
-        document.getElementById('m-balance').textContent = `₦${r.new_balance.toLocaleString()}`;
+        document.getElementById('m-balance').textContent = money(r.new_balance);
         loadUsers();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -409,16 +423,16 @@
       tasksCache = tasks;
       document.getElementById('tasks-table').innerHTML = tasks.length ? tasks.map(t => `
         <tr>
-          <td><i class="${escapeHtml(t.icon || '')}" style="color:var(--primary);margin-right:8px;"></i><b>${escapeHtml(t.title || '')}</b></td>
-          <td class="gold" style="font-weight:800;">₦${Number(t.reward_amount).toLocaleString()}</td>
-          <td><span class="badge badge-gray">${escapeHtml(t.min_tier || 'A0')}</span></td>
+          <td><i class="${t.icon}" style="color:var(--primary);margin-right:8px;"></i><b>${t.title}</b></td>
+          <td class="gold" style="font-weight:800;">${money(t.reward_amount)}</td>
+          <td><span class="badge badge-gray">${t.min_tier}</span></td>
           <td>${t.frequency === 'once' ? '<span class="badge badge-amber">one-time</span>' : '<span class="badge badge-mint">daily</span>'}</td>
           <td>${t.claims.today} / ${t.claims.total}</td>
           <td>${t.is_active ? '<span class="badge badge-mint">Active</span>' : '<span class="badge badge-amber">Paused</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openTaskModal(${jsArg(t.id)})"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-ghost btn-sm" onclick="toggleTask(${jsArg(t.id)}, ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
-            <button class="btn btn-danger btn-sm" onclick="delTask(${jsArg(t.id)})"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="openTaskModal('${t.id}')"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-ghost btn-sm" onclick="toggleTask('${t.id}', ${!t.is_active})">${t.is_active ? 'Pause' : 'Activate'}</button>
+            <button class="btn btn-danger btn-sm" onclick="delTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
     }
@@ -469,12 +483,12 @@
       const { tiers } = await api('get-tiers');
       document.getElementById('tiers-table').innerHTML = tiers.map(t => `
         <tr>
-          <td><span class="badge badge-gold">${escapeHtml(t.tier)}</span></td>
+          <td><span class="badge badge-gold">${t.tier}</span></td>
           <td>${t.members}</td>
           <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}"></td>
-          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${escapeHtml(t.description || '')}"></td>
+          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${t.description || ''}"></td>
           <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;"></td>
-          <td><button class="btn btn-primary btn-sm" onclick="saveTier(${jsArg(t.tier)})"><i class="fa-solid fa-save"></i></button></td>
+          <td><button class="btn btn-primary btn-sm" onclick="saveTier('${t.tier}')"><i class="fa-solid fa-save"></i></button></td>
         </tr>`).join('');
     }
     window.saveTier = async (tier) => {
@@ -496,22 +510,22 @@
       pkgCache = packages;
       document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => `
         <tr>
-          <td><b>${escapeHtml(p.name || '')}</b></td>
-          <td class="mint">₦${Number(p.investment_amount).toLocaleString()}</td>
-          <td class="gold">₦${Number(p.daily_return).toLocaleString()}</td>
+          <td><b>${p.name}</b></td>
+          <td class="mint">${money(p.investment_amount)}</td>
+          <td class="gold">${money(p.daily_return)}</td>
           <td>${p.duration_days}</td>
           <td>${badge(p.is_active ? 'active' : 'rejected')}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="editPackage(${jsArg(p.id)})"><i class="fa-solid fa-edit"></i></button>
-            <button class="btn btn-danger btn-sm" onclick="delPackage(${jsArg(p.id)})"><i class="fa-solid fa-trash"></i></button>
+            <button class="btn btn-primary btn-sm" onclick="editPackage('${p.id}')"><i class="fa-solid fa-edit"></i></button>
+            <button class="btn btn-danger btn-sm" onclick="delPackage('${p.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
       document.getElementById('inv-table').innerHTML = investments.length ? investments.map(i => `
         <tr>
-          <td style="font-size:.82rem;">${escapeHtml(i.profiles?.email || '—')}</td>
-          <td>${escapeHtml(i.wealth_packages?.name || '—')}</td>
-          <td class="mint">₦${Number(i.amount).toLocaleString()}</td>
-          <td style="font-size:.8rem;">${escapeHtml(i.end_date || '—')}</td>
+          <td style="font-size:.82rem;">${i.profiles?.email || '—'}</td>
+          <td>${i.wealth_packages?.name || '—'}</td>
+          <td class="mint">${money(i.amount)}</td>
+          <td style="font-size:.8rem;">${i.end_date}</td>
           <td>${badge(i.status === 'active' ? 'active' : i.status)}</td>
         </tr>`).join('') : '<tr><td colspan="5" style="text-align:center;padding:30px;" class="muted">No investments yet</td></tr>';
     }
@@ -566,11 +580,15 @@
         bank: { deposit_bank_name: document.getElementById('set-bank').value, deposit_account_number: document.getElementById('set-acct').value, deposit_account_name: document.getElementById('set-acct-name').value },
         links: { telegram_link: document.getElementById('set-tg').value, whatsapp_link: document.getElementById('set-wa').value, support_link: document.getElementById('set-support').value }
       };
-      try { await api('save-settings', { method: 'POST', body: JSON.stringify(map[group]) }); showToast('Settings saved', 'success'); }
-      catch (e) { showToast(e.message, 'error'); }
+      try {
+        await api('save-settings', { method: 'POST', body: JSON.stringify(map[group]) });
+        showToast('Settings saved', 'success');
+        if (group === 'fees') await refreshFee(); // update fee calculations instantly
+      } catch (e) { showToast(e.message, 'error'); }
     };
 
-    loadDashboard().catch(error => { if (typeof showToast === 'function') showToast(error.message || 'Could not load dashboard', 'error'); });
+    refreshFee();
+    loadDashboard();
   </script>
 </body>
 </html>
