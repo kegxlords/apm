@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 }
 
 // ==========================================
-// GET TASKS
+// GET TASKS (tier controls exactly what's shown)
 // ==========================================
 async function getTasks(user, res) {
   let profile = await ensureTierActive(await getProfile(user.id));
@@ -50,8 +50,16 @@ async function getTasks(user, res) {
   const claimsToday = (claims || []).filter(c => c.claim_date === today).length;
   const bonus = Number(tierCfg.task_bonus || 0);
   const userRank = tierRank(profile.tier);
+  const limit = Number(tierCfg.daily_task_limit || 0);
 
-  const result = (tasks || []).map(t => {
+  // 1. Tasks unlocked for this tier (min_tier <= user's tier), in admin order
+  const unlocked = (tasks || []).filter(t => userRank >= tierRank(t.min_tier));
+
+  // 2. Tier's "Tasks/Day" setting = EXACTLY how many tasks this tier sees
+  //    (0 = show all unlocked tasks)
+  const visible = limit > 0 ? unlocked.slice(0, limit) : unlocked;
+
+  const result = visible.map(t => {
     const c = claimMap[t.id];
     const claimed = t.frequency === 'once' ? !!c : !!c?.today;
     return {
@@ -64,7 +72,7 @@ async function getTasks(user, res) {
       icon: t.icon,
       frequency: t.frequency || 'daily',
       claimed_today: claimed,
-      locked: userRank < tierRank(t.min_tier)
+      locked: false
     };
   });
 
@@ -80,7 +88,8 @@ async function getTasks(user, res) {
     tier: profile.tier,
     streak: profile.current_streak || 0,
     today_earned: (todayTxns || []).reduce((s, r) => s + Number(r.amount), 0),
-    daily_limit: Number(tierCfg.daily_task_limit || 0),
+    daily_limit: limit,
+    tasks_visible: visible.length,
     claims_today: claimsToday,
     task_bonus: bonus,
     tier_expires_at: profile.tier_expires_at || null,
