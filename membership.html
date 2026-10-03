@@ -31,7 +31,7 @@
   <div id="header-container"></div>
   <div class="page">
     <h1 class="page-title">Membership</h1>
-    <p class="page-sub">Higher tier = richer tasks, bigger bonuses, more daily claims.</p>
+    <p class="page-sub">Higher tier = more tasks per day & bigger pay per task.</p>
 
     <div class="tier-hero">
       <div class="label">Current Tier</div>
@@ -106,7 +106,12 @@
           const myRank = rank(myTier), tRank = rank(t.tier);
           const expiry = Number(t.expiry_days || 0);
           const limit = Number(t.daily_task_limit || 0);
-          const bonus = Number(t.task_bonus || 0);
+          const income = Number(t.task_bonus || 0);
+
+          // Daily potential: tier pay × tasks/day (or task rewards if tier pay = 0)
+          const potential = income > 0
+            ? (limit > 0 ? limit : stats.count) * income
+            : stats.dailyTotal;
 
           let action;
           if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
@@ -121,11 +126,11 @@
               <div class="tier-badge-lg">${t.tier}</div>
               <div class="tier-info">
                 <div class="tier-name">${t.description || t.tier + ' Member'}</div>
-                <div class="tier-meta">${stats.count} tasks • up to ₦${(stats.dailyTotal + (limit ? limit * bonus : stats.count * bonus)).toLocaleString()}/day potential</div>
+                <div class="tier-meta">${limit > 0 ? limit : stats.count} tasks/day • up to ₦${potential.toLocaleString()}/day</div>
                 <div class="perk-chips">
                   <span class="perk gold"><i class="fa-regular fa-clock"></i> ${expiry > 0 ? expiry + ' days' : 'Lifetime'}</span>
                   <span class="perk mint"><i class="fa-solid fa-hand-pointer"></i> ${limit > 0 ? limit + ' tasks/day' : 'Unlimited tasks'}</span>
-                  <span class="perk gold"><i class="fa-solid fa-coins"></i> +₦${bonus.toLocaleString()}/task</span>
+                  <span class="perk gold"><i class="fa-solid fa-coins"></i> ${income > 0 ? '₦' + income.toLocaleString() + '/task' : 'Task rewards'}</span>
                 </div>
               </div>
               <div style="text-align:right;">
