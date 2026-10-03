@@ -1,6 +1,7 @@
 import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, isAdmin } from '../lib/auth.js';
 import { payReferralCommission, getSetting } from '../lib/rewards.js';
+import { getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
 
@@ -141,7 +142,7 @@ async function processWithdrawal(req, res) {
 async function getUsers(req, res) {
   const search = (req.query.search || '').trim();
   let q = supabaseAdmin.from('profiles')
-    .select('id, email, full_name, tier, is_frozen, created_at, wallets!left(balance)')
+    .select('id, email, full_name, tier, tier_expires_at, is_frozen, created_at, wallets!left(balance)')
     .order('created_at', { ascending: false }).limit(200);
   if (search) q = q.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
   const { data } = await q;
@@ -149,10 +150,22 @@ async function getUsers(req, res) {
 }
 
 async function updateUser(req, res) {
-  const { user_id, tier, is_frozen } = req.body;
+  const { user_id, tier, is_frozen, tier_expiry_days } = req.body;
   const updates = {};
-  if (tier !== undefined) updates.tier = tier;
   if (is_frozen !== undefined) updates.is_frozen = is_frozen;
+
+  if (tier !== undefined) {
+    updates.tier = tier;
+    if (tier_expiry_days !== undefined && tier_expiry_days !== null && tier_expiry_days !== '') {
+      updates.tier_expires_at = tierExpiryFromNow(tier_expiry_days);
+    } else {
+      const cfg = await getTierConfig(tier);
+      updates.tier_expires_at = tierExpiryFromNow(cfg.expiry_days);
+    }
+  } else if (tier_expiry_days !== undefined && tier_expiry_days !== null && tier_expiry_days !== '') {
+    updates.tier_expires_at = tierExpiryFromNow(tier_expiry_days);
+  }
+
   const { error } = await supabaseAdmin.from('profiles').update(updates).eq('id', user_id);
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
@@ -229,11 +242,14 @@ async function getTiers(res) {
 }
 
 async function updateTier(req, res) {
-  const { tier, upgrade_cost, description, is_active } = req.body;
+  const { tier, upgrade_cost, description, is_active, expiry_days, daily_task_limit, task_bonus } = req.body;
   const updates = {};
   if (upgrade_cost !== undefined) updates.upgrade_cost = Number(upgrade_cost);
   if (description !== undefined) updates.description = description;
   if (is_active !== undefined) updates.is_active = is_active;
+  if (expiry_days !== undefined) updates.expiry_days = Number(expiry_days);
+  if (daily_task_limit !== undefined) updates.daily_task_limit = Number(daily_task_limit);
+  if (task_bonus !== undefined) updates.task_bonus = Number(task_bonus);
   const { error } = await supabaseAdmin.from('apm_tiers').update(updates).eq('tier', tier);
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
