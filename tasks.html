@@ -111,14 +111,14 @@
         document.getElementById('streak-num').textContent = `${data.streak} day${data.streak === 1 ? '' : 's'}`;
         document.getElementById('today-earned').textContent = `₦${Number(data.today_earned).toLocaleString()}`;
 
-        // Info chips: daily limit, tier bonus, expiry
+        // Info chips: daily limit, tier pay rate, expiry
         const chips = [];
         const limit = Number(data.daily_limit || 0);
         const used = Number(data.claims_today || 0);
         const limitReached = limit > 0 && used >= limit;
         chips.push(`<span class="chip ${limitReached ? 'full' : 'mint'}"><i class="fa-solid fa-hand-pointer"></i> Tasks today: ${used}${limit > 0 ? ' / ' + limit : ' (unlimited)'}</span>`);
         if (Number(data.task_bonus || 0) > 0) {
-          chips.push(`<span class="chip gold"><i class="fa-solid fa-coins"></i> +₦${Number(data.task_bonus).toLocaleString()} bonus per task</span>`);
+          chips.push(`<span class="chip gold"><i class="fa-solid fa-coins"></i> ₦${Number(data.task_bonus).toLocaleString()} per task (${data.tier} rate)</span>`);
         }
         if (data.tier_expires_at) {
           const days = Math.ceil((new Date(data.tier_expires_at) - Date.now()) / 86400000);
@@ -200,7 +200,7 @@
         btn.className = 'claim-btn done';
         btn.innerHTML = '<i class="fa-solid fa-check"></i> Claimed';
         document.getElementById(`card-${taskId}`)?.classList.add('claimed');
-        showToast(`+₦${data.amount.toLocaleString()} claimed!${data.bonus ? ` (incl. +₦${data.bonus} tier bonus)` : ''} 🔥 ${data.streak}-day streak`, 'gold');
+        showToast(`+₦${data.amount.toLocaleString()} claimed! 🔥 ${data.streak}-day streak`, 'gold');
         loadTasks();
         window.APMShell?.refresh();
       } catch (err) {
