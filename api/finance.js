@@ -1,6 +1,7 @@
 import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, getProfile } from '../lib/auth.js';
 import { getSetting } from '../lib/rewards.js';
+import { ensureTierActive, getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
 
@@ -56,7 +57,7 @@ async function createDeposit(req, user, res) {
 // WITHDRAWAL ELIGIBILITY (shared helper)
 // ==========================================
 async function checkWithdrawalEligibility(user) {
-  const profile = await getProfile(user.id);
+  let profile = await ensureTierActive(await getProfile(user.id));
   if (!profile) return { can_withdraw_now: false, reason_blocked: 'Profile not found' };
 
   const min = Number(await getSetting('min_withdrawal', '1000'));
@@ -123,27 +124,44 @@ async function requestWithdrawal(req, user, res) {
 // ==========================================
 async function upgradeTier(req, user, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const profile = await getProfile(user.id);
+  let profile = await ensureTierActive(await getProfile(user.id));
   if (profile?.is_frozen) return res.status(403).json({ error: 'Account frozen' });
 
   const { tier } = req.body || {};
   const ORDER = ['A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7'];
-  const { data: tierRow } = await supabaseAdmin.from('apm_tiers').select('*').eq('tier', tier).eq('is_active', true).single();
-  if (!tierRow) return res.status(404).json({ error: 'Tier not available' });
-  if (ORDER.indexOf(tier) <= ORDER.indexOf(profile.tier)) return res.status(400).json({ error: 'You are already at or above this tier' });
+  const cfg = await getTierConfig(tier);
+  if (!cfg || cfg.tier === 'A0' || cfg.is_active === false) return res.status(404).json({ error: 'Tier not available' });
 
-  const cost = Number(tierRow.upgrade_cost);
+  const myRank = ORDER.indexOf(profile.tier);
+  const targetRank = ORDER.indexOf(tier);
+  if (targetRank < myRank) return res.status(400).json({ error: 'You cannot downgrade to a lower tier' });
+
+  const isRenewal = targetRank === myRank;
+  const cost = Number(cfg.upgrade_cost);
   const { data: wallet } = await supabaseAdmin.from('wallets').select('balance').eq('user_id', user.id).single();
-  if (Number(wallet?.balance || 0) < cost) return res.status(400).json({ error: `Insufficient balance. ${tier} costs ₦${cost.toLocaleString()}` });
+  if (Number(wallet?.balance || 0) < cost) {
+    return res.status(400).json({ error: `Insufficient balance. ${isRenewal ? 'Renewing' : 'Upgrading to'} ${tier} costs ₦${cost.toLocaleString()}` });
+  }
+
+  // Expiry: extend from current expiry if still active, else from now. 0 days = lifetime.
+  let newExpiry = null;
+  const days = Number(cfg.expiry_days || 0);
+  if (days > 0) {
+    const base = (isRenewal && profile.tier_expires_at && new Date(profile.tier_expires_at) > new Date())
+      ? new Date(profile.tier_expires_at)
+      : new Date();
+    newExpiry = new Date(base.getTime() + days * 86400000).toISOString();
+  }
 
   await supabaseAdmin.from('wallets').update({ balance: Number(wallet.balance) - cost, updated_at: new Date().toISOString() }).eq('user_id', user.id);
-  await supabaseAdmin.from('profiles').update({ tier }).eq('id', user.id);
+  await supabaseAdmin.from('profiles').update({ tier, tier_expires_at: newExpiry }).eq('id', user.id);
   await supabaseAdmin.from('transactions').insert({
     user_id: user.id, type: 'membership_upgrade', amount: cost, status: 'approved',
-    reference: `UPGRADE_${user.id.slice(0, 8)}_${Date.now()}`, description: `Upgraded to ${tier}`
+    reference: `${isRenewal ? 'RENEW' : 'UPGRADE'}_${user.id.slice(0, 8)}_${Date.now()}`,
+    description: `${isRenewal ? 'Renewed' : 'Upgraded to'} ${tier}` + (newExpiry ? ` (until ${newExpiry.slice(0, 10)})` : ' (lifetime)')
   });
 
-  return res.json({ ok: true, tier });
+  return res.json({ ok: true, tier, renewed: isRenewal, expires_at: newExpiry });
 }
 
 // ==========================================
