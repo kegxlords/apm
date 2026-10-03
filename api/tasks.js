@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 }
 
 // ==========================================
-// GET TASKS (tier controls exactly what's shown)
+// GET TASKS (tier controls what's shown + exact pay)
 // ==========================================
 async function getTasks(user, res) {
   let profile = await ensureTierActive(await getProfile(user.id));
@@ -48,15 +48,13 @@ async function getTasks(user, res) {
   });
 
   const claimsToday = (claims || []).filter(c => c.claim_date === today).length;
-  const bonus = Number(tierCfg.task_bonus || 0);
+  const tierIncome = Number(tierCfg.task_bonus || 0); // exact pay per task (0 = use task's own reward)
   const userRank = tierRank(profile.tier);
   const limit = Number(tierCfg.daily_task_limit || 0);
 
-  // 1. Tasks unlocked for this tier (min_tier <= user's tier), in admin order
+  // Tasks unlocked for this tier, in admin order
   const unlocked = (tasks || []).filter(t => userRank >= tierRank(t.min_tier));
-
-  // 2. Tier's "Tasks/Day" setting = EXACTLY how many tasks this tier sees
-  //    (0 = show all unlocked tasks)
+  // Tier's Tasks/Day = exactly how many tasks this tier sees (0 = all)
   const visible = limit > 0 ? unlocked.slice(0, limit) : unlocked;
 
   const result = visible.map(t => {
@@ -67,7 +65,7 @@ async function getTasks(user, res) {
       title: t.title,
       description: t.description,
       reward_amount: Number(t.reward_amount),
-      effective_reward: Number(t.reward_amount) + bonus,
+      effective_reward: tierIncome > 0 ? tierIncome : Number(t.reward_amount),
       min_tier: t.min_tier,
       icon: t.icon,
       frequency: t.frequency || 'daily',
@@ -91,7 +89,7 @@ async function getTasks(user, res) {
     daily_limit: limit,
     tasks_visible: visible.length,
     claims_today: claimsToday,
-    task_bonus: bonus,
+    task_bonus: tierIncome,
     tier_expires_at: profile.tier_expires_at || null,
     tasks: result
   });
@@ -120,7 +118,7 @@ async function claimTask(req, user, res) {
   const tierCfg = await getTierConfig(profile.tier);
   const today = todayUTC();
 
-  // Daily task limit per tier (0 = unlimited)
+  // Daily claim limit per tier (0 = unlimited)
   const limit = Number(tierCfg.daily_task_limit || 0);
   if (limit > 0) {
     const { count } = await supabaseAdmin.from('task_claims')
@@ -139,8 +137,9 @@ async function claimTask(req, user, res) {
     if (count > 0) return res.status(409).json({ error: 'One-time task — you already claimed it.' });
   }
 
-  const bonus = Number(tierCfg.task_bonus || 0);
-  const amount = Number(task.reward_amount) + bonus;
+  // EXACT pay: tier's ₦/task if set, otherwise the task's own reward
+  const tierIncome = Number(tierCfg.task_bonus || 0);
+  const amount = tierIncome > 0 ? tierIncome : Number(task.reward_amount);
 
   const { data: claim, error: claimError } = await supabaseAdmin
     .from('task_claims')
@@ -167,7 +166,7 @@ async function claimTask(req, user, res) {
     amount,
     status: 'approved',
     reference: `TASKCLAIM_${claim.id}`,
-    description: `Task: ${task.title}` + (bonus ? ` (incl. +₦${bonus} ${profile.tier} bonus)` : '')
+    description: `Task: ${task.title}` + (tierIncome > 0 ? ` (${profile.tier} rate ₦${tierIncome})` : '')
   });
 
   const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
@@ -179,5 +178,5 @@ async function claimTask(req, user, res) {
     .update({ current_streak: streak, last_claim_date: today })
     .eq('id', profile.id);
 
-  return res.json({ ok: true, amount, bonus, new_balance: newBalance, streak });
+  return res.json({ ok: true, amount, new_balance: newBalance, streak });
 }
