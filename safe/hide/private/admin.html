@@ -104,9 +104,9 @@
     <!-- TIERS -->
     <section id="tiers" class="section">
       <h2 class="section-title"><i class="fa-solid fa-crown"></i>Tiers (Subscriptions)</h2>
-      <div class="notice mint"><i class="fa-solid fa-circle-info"></i>Expiry 0 = lifetime • Tasks/Day 0 = unlimited • +₦/Task is added to every task reward at that tier.</div>
+      <div class="notice mint"><i class="fa-solid fa-circle-info"></i>Expiry 0 = lifetime • Tasks/Day 0 = unlimited • ₦/Task = exact amount earned per task at that tier (0 = use each task's own reward).</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Tier</th><th>Members</th><th>Cost ₦</th><th>Expiry (days)</th><th>Tasks/Day</th><th>+₦/Task</th><th>Active</th><th></th></tr></thead>
+        <thead><tr><th>Tier</th><th>Members</th><th>Cost ₦</th><th>Expiry (days)</th><th>Tasks/Day</th><th>₦/Task</th><th>Active</th><th></th></tr></thead>
         <tbody id="tiers-table"></tbody>
       </table></div>
     </section>
@@ -498,7 +498,7 @@
           <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}" ${t.tier === 'A0' ? 'disabled' : ''}></td>
           <td><input class="inline-input" style="width:70px;" type="number" id="exp-${t.tier}" value="${t.expiry_days}" title="0 = lifetime"></td>
           <td><input class="inline-input" style="width:70px;" type="number" id="lim-${t.tier}" value="${t.daily_task_limit}" title="0 = unlimited"></td>
-          <td><input class="inline-input" style="width:80px;" type="number" id="bon-${t.tier}" value="${t.task_bonus}"></td>
+          <td><input class="inline-input" style="width:80px;" type="number" id="bon-${t.tier}" value="${t.task_bonus}" title="Exact pay per task (0 = task's own reward)"></td>
           <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;" ${t.tier === 'A0' ? 'disabled' : ''}></td>
           <td><button class="btn btn-primary btn-sm" onclick="saveTier('${t.tier}')"><i class="fa-solid fa-save"></i></button></td>
         </tr>`).join('');
