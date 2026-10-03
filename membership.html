@@ -16,7 +16,9 @@
     .expiry-chip.life { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(245,197,24,.3); }
     .tier-row { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
     .tier-row.current { border-color: rgba(245,197,24,.5); box-shadow: 0 0 24px rgba(245,197,24,.12); }
+    .tier-row.inactive { opacity: .55; }
     .tier-badge-lg { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-family: 'Sora'; font-weight: 800; font-size: 1rem; background: var(--gold-dim); color: var(--gold); flex-shrink: 0; }
+    .tier-row.inactive .tier-badge-lg { background: rgba(143,168,160,.1); color: var(--muted); }
     .tier-info { flex: 1; min-width: 0; }
     .tier-name { font-weight: 800; font-size: .95rem; }
     .tier-meta { font-size: .74rem; color: var(--muted); margin-top: 3px; }
@@ -70,7 +72,7 @@
       try {
         const [profileR, tiersR, tasksR] = await Promise.all([
           supabase.from('profiles').select('tier, tier_expires_at').eq('id', user.id).single(),
-          supabase.from('apm_tiers').select('*').eq('is_active', true).order('sort_order', { ascending: true }),
+          supabase.from('apm_tiers').select('*').order('sort_order', { ascending: true }), // ALL tiers (incl. inactive)
           supabase.from('tasks').select('reward_amount, min_tier').eq('is_active', true)
         ]);
 
@@ -107,22 +109,24 @@
           const expiry = Number(t.expiry_days || 0);
           const limit = Number(t.daily_task_limit || 0);
           const income = Number(t.task_bonus || 0);
+          const inactive = t.is_active === false;
 
-          // Daily potential: tier pay × tasks/day (or task rewards if tier pay = 0)
           const potential = income > 0
             ? (limit > 0 ? limit : stats.count) * income
             : stats.dailyTotal;
 
           let action;
-          if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
-          else if (tRank === myRank) {
+          if (tRank === myRank) {
             action = '<span class="badge badge-gold">Current</span>';
-            if (expiry > 0) action += `<div style="margin-top:6px;"><button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Renew</button></div>`;
+            if (inactive) action += ' <span class="badge badge-red">Inactive</span>';
+            else if (expiry > 0) action += `<div style="margin-top:6px;"><button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Renew</button></div>`;
           }
+          else if (inactive) action = '<span class="badge badge-red">Inactive</span>';
+          else if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
           else action = `<button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Upgrade</button>`;
 
           return `
-            <div class="tier-row ${tRank === myRank ? 'current' : ''}">
+            <div class="tier-row ${tRank === myRank ? 'current' : ''} ${inactive ? 'inactive' : ''}">
               <div class="tier-badge-lg">${t.tier}</div>
               <div class="tier-info">
                 <div class="tier-name">${t.description || t.tier + ' Member'}</div>
