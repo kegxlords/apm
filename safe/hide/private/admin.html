@@ -60,7 +60,7 @@
       </table></div>
     </section>
 
-    <!-- WITHDRAWALS (with fee calculation) -->
+    <!-- WITHDRAWALS -->
     <section id="withdrawals" class="section">
       <h2 class="section-title"><i class="fa-solid fa-arrow-up"></i>Withdrawals</h2>
       <div class="notice amber"><i class="fa-solid fa-circle-exclamation"></i>Fee: <b id="fee-notice-pct">0</b>% — pay the <b>NET</b> amount shown below from your bank. Reject = instant auto-refund of the gross amount.</div>
@@ -84,7 +84,7 @@
         <button class="btn btn-primary btn-sm" onclick="loadUsers()"><i class="fa-solid fa-magnifying-glass"></i> Search</button>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Email</th><th>Name</th><th>Tier</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Email</th><th>Name</th><th>Tier / Expiry</th><th>Balance</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="users-table"></tbody>
       </table></div>
     </section>
@@ -103,9 +103,10 @@
 
     <!-- TIERS -->
     <section id="tiers" class="section">
-      <h2 class="section-title"><i class="fa-solid fa-crown"></i>Tiers A1–A7</h2>
+      <h2 class="section-title"><i class="fa-solid fa-crown"></i>Tiers (Subscriptions)</h2>
+      <div class="notice mint"><i class="fa-solid fa-circle-info"></i>Expiry 0 = lifetime • Tasks/Day 0 = unlimited • +₦/Task is added to every task reward at that tier.</div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Tier</th><th>Members</th><th>Upgrade Cost (₦)</th><th>Description</th><th>Active</th><th></th></tr></thead>
+        <thead><tr><th>Tier</th><th>Members</th><th>Cost ₦</th><th>Expiry (days)</th><th>Tasks/Day</th><th>+₦/Task</th><th>Active</th><th></th></tr></thead>
         <tbody id="tiers-table"></tbody>
       </table></div>
     </section>
@@ -180,6 +181,9 @@
     </div>
     <div class="form-group"><label class="form-label">Tier</label>
       <select class="select" id="m-tier"><option>A0</option><option>A1</option><option>A2</option><option>A3</option><option>A4</option><option>A5</option><option>A6</option><option>A7</option></select>
+    </div>
+    <div class="form-group"><label class="form-label">Tier Expiry Override (days)</label>
+      <input type="number" class="input" id="m-expiry" placeholder="blank = tier default • 0 = lifetime">
     </div>
     <div class="form-group"><label class="form-label">Account Status</label>
       <select class="select" id="m-frozen"><option value="false">Active</option><option value="true">Frozen</option></select>
@@ -267,7 +271,6 @@
     let FEE_PCT = 0;
     let wdCache = [];
 
-    // Load fee % once at startup so Withdrawals tab can calculate immediately
     async function refreshFee() {
       try {
         const { settings } = await api('get-settings');
@@ -323,7 +326,7 @@
       } catch (e) { showToast(e.message, 'error'); }
     };
 
-    // ===== WITHDRAWALS (FEE CALCULATION) =====
+    // ===== WITHDRAWALS (FEE CALC) =====
     window.loadWithdrawals = async () => {
       const { withdrawals } = await api(`get-withdrawals&status=${document.getElementById('wd-filter').value}`);
       wdCache = withdrawals;
@@ -370,7 +373,7 @@
         <tr>
           <td style="font-size:.82rem;">${u.email}</td>
           <td>${u.full_name || '—'}</td>
-          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span></td>
+          <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span><div class="muted" style="font-size:.68rem;">${u.tier_expires_at ? 'exp ' + new Date(u.tier_expires_at).toLocaleDateString() : (u.tier !== 'A0' ? 'lifetime' : '')}</div></td>
           <td class="mint" style="font-weight:700;">${money(u.wallets?.[0]?.balance || 0)}</td>
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
@@ -384,12 +387,19 @@
       document.getElementById('m-email').textContent = email;
       document.getElementById('m-balance').textContent = money(balance);
       document.getElementById('m-tier').value = tier;
+      document.getElementById('m-expiry').value = '';
       document.getElementById('m-frozen').value = String(frozen);
       document.getElementById('user-modal').classList.add('active');
     };
     window.saveUser = async () => {
+      const expiryVal = document.getElementById('m-expiry').value;
       try {
-        await api('update-user', { method: 'POST', body: JSON.stringify({ user_id: currentUserId, tier: document.getElementById('m-tier').value, is_frozen: document.getElementById('m-frozen').value === 'true' }) });
+        await api('update-user', { method: 'POST', body: JSON.stringify({
+          user_id: currentUserId,
+          tier: document.getElementById('m-tier').value,
+          is_frozen: document.getElementById('m-frozen').value === 'true',
+          tier_expiry_days: expiryVal === '' ? undefined : Number(expiryVal)
+        })});
         showToast('User updated', 'success'); closeModal('user-modal'); loadUsers();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -435,7 +445,7 @@
             <button class="btn btn-danger btn-sm" onclick="delTask('${t.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No tasks yet</td></tr>';
-    }
+    };
     window.openTaskModal = (id) => {
       const t = tasksCache.find(x => x.id === id);
       document.getElementById('t-id').value = t?.id || '';
@@ -478,16 +488,18 @@
       catch (e) { showToast(e.message, 'error'); }
     };
 
-    // ===== TIERS =====
+    // ===== TIERS (SUBSCRIPTIONS) =====
     async function loadTiers() {
       const { tiers } = await api('get-tiers');
       document.getElementById('tiers-table').innerHTML = tiers.map(t => `
         <tr>
-          <td><span class="badge badge-gold">${t.tier}</span></td>
+          <td><span class="badge ${t.tier === 'A0' ? 'badge-gray' : 'badge-gold'}">${t.tier}</span></td>
           <td>${t.members}</td>
-          <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}"></td>
-          <td><input class="inline-input" style="width:160px;" id="desc-${t.tier}" value="${t.description || ''}"></td>
-          <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;"></td>
+          <td><input class="inline-input" type="number" id="cost-${t.tier}" value="${t.upgrade_cost}" ${t.tier === 'A0' ? 'disabled' : ''}></td>
+          <td><input class="inline-input" style="width:70px;" type="number" id="exp-${t.tier}" value="${t.expiry_days}" title="0 = lifetime"></td>
+          <td><input class="inline-input" style="width:70px;" type="number" id="lim-${t.tier}" value="${t.daily_task_limit}" title="0 = unlimited"></td>
+          <td><input class="inline-input" style="width:80px;" type="number" id="bon-${t.tier}" value="${t.task_bonus}"></td>
+          <td><input type="checkbox" id="act-${t.tier}" ${t.is_active ? 'checked' : ''} style="width:18px;height:18px;" ${t.tier === 'A0' ? 'disabled' : ''}></td>
           <td><button class="btn btn-primary btn-sm" onclick="saveTier('${t.tier}')"><i class="fa-solid fa-save"></i></button></td>
         </tr>`).join('');
     }
@@ -496,7 +508,9 @@
         await api('update-tier', { method: 'POST', body: JSON.stringify({
           tier,
           upgrade_cost: document.getElementById(`cost-${tier}`).value,
-          description: document.getElementById(`desc-${tier}`).value,
+          expiry_days: document.getElementById(`exp-${tier}`).value,
+          daily_task_limit: document.getElementById(`lim-${tier}`).value,
+          task_bonus: document.getElementById(`bon-${tier}`).value,
           is_active: document.getElementById(`act-${tier}`).checked
         })});
         showToast(`${tier} updated`, 'success');
@@ -583,7 +597,7 @@
       try {
         await api('save-settings', { method: 'POST', body: JSON.stringify(map[group]) });
         showToast('Settings saved', 'success');
-        if (group === 'fees') await refreshFee(); // update fee calculations instantly
+        if (group === 'fees') await refreshFee();
       } catch (e) { showToast(e.message, 'error'); }
     };
 
