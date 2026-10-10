@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>APM — My Team</title>
+  <title>MMM — My Team</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -69,11 +69,11 @@
 
     window.copyLink = () => { navigator.clipboard.writeText(inviteLink); showToast('Invite link copied!', 'success'); };
     window.shareWhatsApp = () => {
-      const msg = encodeURIComponent(`Join me on APM and start earning daily! Use my code ${code} to sign up: ${inviteLink}`);
+      const msg = encodeURIComponent(`Join me on MMM and start earning daily! Use my code ${code} to sign up: ${inviteLink}`);
       open(`https://wa.me/?text=${msg}`, '_blank');
     };
     window.shareTelegram = () => {
-      const msg = encodeURIComponent(`Join me on APM and start earning daily! Use my code ${code}: ${inviteLink}`);
+      const msg = encodeURIComponent(`Join me on MMM and start earning daily! Use my code ${code}: ${inviteLink}`);
       open(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${msg}`, '_blank');
     };
 
