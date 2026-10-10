@@ -6,7 +6,7 @@ function headerHTML() {
   return `
     <header class="apm-header">
       <a href="/dashboard.html" class="apm-logo">
-        <span class="coin">A</span> APM<span class="bolt">⚡</span>
+        <span class="coin">M</span> MMM<span class="bolt">⚡</span>
       </a>
       <div class="header-right">
         <span class="tier-badge" id="shell-tier">A0</span>
