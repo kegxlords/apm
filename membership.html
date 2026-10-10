@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>APM — Membership</title>
+  <title>MMM — Membership</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -72,7 +72,7 @@
       try {
         const [profileR, tiersR, tasksR] = await Promise.all([
           supabase.from('profiles').select('tier, tier_expires_at').eq('id', user.id).single(),
-          supabase.from('apm_tiers').select('*').order('sort_order', { ascending: true }), // ALL tiers (incl. inactive)
+          supabase.from('apm_tiers').select('*').order('sort_order', { ascending: true }),
           supabase.from('tasks').select('reward_amount, min_tier').eq('is_active', true)
         ]);
 
