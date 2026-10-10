@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>APM — Deposit</title>
+  <title>MMM — Deposit</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -105,28 +105,35 @@
       if (!sender) return showToast('Enter the sender name', 'error');
 
       const btn = document.getElementById('submit-btn');
+      const original = btn.innerHTML;
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i> Submitting...';
 
-      const res = await fetch('/api/finance?action=createDeposit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify({
-          amount,
-          sender_name: sender,
-          payment_method: document.getElementById('payment-method').value,
-          proof_ref: document.getElementById('proof-ref').value.trim() || null
-        })
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error, 'error');
+      try {
+        const res = await fetch('/api/finance?action=createDeposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
+          body: JSON.stringify({
+            amount,
+            sender_name: sender,
+            payment_method: document.getElementById('payment-method').value,
+            proof_ref: document.getElementById('proof-ref').value.trim() || null
+          })
+        });
+        const text = await res.text();
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+        showToast('Deposit submitted! We\'ll verify it shortly.', 'gold');
+        setTimeout(() => location.href = '/dashboard.html', 1200);
+      } catch (err) {
+        console.error('[DEPOSIT] Submit failed:', err);
+        showToast(err.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Submit for Verification';
-        return;
+        btn.innerHTML = original;
       }
-      showToast('Deposit submitted! We\'ll verify it shortly.', 'gold');
-      setTimeout(() => location.href = '/dashboard.html', 1200);
     };
 
     // Recent deposits
