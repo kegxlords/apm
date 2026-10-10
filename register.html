@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>APM — Create Account</title>
+  <title>MMM — Create Account</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -24,7 +24,7 @@
 <body>
   <div class="auth-wrap">
     <div class="auth-card">
-      <div class="auth-logo"><span class="coin">A</span> APM<span class="bolt">⚡</span></div>
+      <div class="auth-logo"><span class="coin">M</span> MMM<span class="bolt">⚡</span></div>
       <div class="auth-title">Create your account</div>
       <div class="auth-sub">Free to join • Start claiming today</div>
 
@@ -95,12 +95,12 @@
 
       if (data.session) {
         // Email confirmation disabled → straight in
-        showToast('Account created! Welcome to APM 🎉', 'gold');
+        showToast('Account created! Welcome to MMM 🎉', 'gold');
         setTimeout(() => window.location.href = '/dashboard.html', 800);
       } else {
         // Email confirmation enabled
         document.querySelector('.auth-card').innerHTML = `
-          <div class="auth-logo"><span class="coin">A</span> APM<span class="bolt">⚡</span></div>
+          <div class="auth-logo"><span class="coin">M</span> MMM<span class="bolt">⚡</span></div>
           <div class="auth-title">Check your email 📬</div>
           <div class="auth-sub">We sent a confirmation link to <b class="mint">${email}</b>.<br>Confirm it, then sign in to start earning.</div>
           <a href="/login.html" class="btn btn-primary btn-block"><i class="fa-solid fa-right-to-bracket"></i> Go to Sign In</a>
