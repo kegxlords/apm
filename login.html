@@ -2,51 +2,268 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>3M — Sign In</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
-  <meta name="theme-color" content="#0B1210">
+  <meta name="theme-color" content="#E9F4EC">
   <style>
+    /* ============================================================
+       3M SIGN IN — full-viewport premium layout (no card)
+       Desktop: split screen · brand panel + form panel
+       Mobile:  brand header, edge-to-edge form
+       ============================================================ */
+
     body { padding-bottom: 0; }
-    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
-    .auth-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 32px 26px; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
-    .auth-logo { display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Sora'; font-weight: 800; font-size: 1.5rem; }
-    .auth-logo .coin { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), #00A86B); display: grid; place-items: center; color: #04110B; font-size: 1.3rem; box-shadow: 0 0 24px rgba(0,224,138,.4); }
-    .auth-logo .bolt { color: var(--gold); }
-    .auth-title { text-align: center; font-size: 1.3rem; font-weight: 800; margin: 16px 0 4px; }
-    .auth-sub { text-align: center; color: var(--muted); font-size: .88rem; margin-bottom: 24px; }
-    .auth-switch { text-align: center; margin-top: 18px; font-size: .88rem; color: var(--muted); }
-    .auth-switch a { color: var(--primary); font-weight: 700; text-decoration: none; }
-    .forgot-row { text-align: right; margin-top: 10px; }
-    .forgot-row a { color: var(--muted); font-size: .8rem; text-decoration: none; }
-    .forgot-row a:hover { color: var(--primary); }
+
+    .auth-stage {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* ---------- BRAND PANEL ---------- */
+    .brand-panel {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 56px;
+      background:
+        radial-gradient(900px 600px at 20% 10%, rgba(16, 185, 129, 0.35), transparent 60%),
+        radial-gradient(700px 500px at 90% 90%, rgba(217, 119, 6, 0.18), transparent 60%),
+        linear-gradient(160deg, #0E3B2C 0%, #10B981 55%, #6EE7B7 100%);
+    }
+    .brand-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(ellipse at 30% 30%, black 20%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at 30% 30%, black 20%, transparent 75%);
+      pointer-events: none;
+    }
+    .brand-panel::after {
+      content: '';
+      position: absolute; top: -30%; right: -20%;
+      width: 70%; height: 90%;
+      background: radial-gradient(closest-side, rgba(255, 255, 255, 0.14), transparent);
+      pointer-events: none;
+    }
+
+    .brand-top { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; }
+    .brand-top .brand-mark {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      display: grid; place-items: center;
+      color: #fff; font-family: 'Sora'; font-weight: 800; font-size: 0.95rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .brand-top .brand-name {
+      color: #fff; font-family: 'Sora'; font-weight: 800; font-size: 1.15rem;
+      letter-spacing: -0.01em;
+    }
+    .brand-top .brand-name small {
+      display: block; font-family: 'Inter'; font-weight: 700; font-size: 0.55rem;
+      letter-spacing: 0.22em; color: rgba(255, 255, 255, 0.65); margin-top: 3px;
+    }
+
+    .brand-center { position: relative; z-index: 1; }
+    .brand-logo-img {
+      width: min(300px, 60%);
+      filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.25));
+      border-radius: 20px;
+    }
+    .brand-headline {
+      color: #fff; font-family: 'Sora'; font-weight: 800;
+      font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+      letter-spacing: -0.03em; line-height: 1.15;
+      margin-top: 28px; max-width: 420px;
+    }
+    .brand-headline em { font-style: normal; color: #FDE68A; }
+    .brand-tagline {
+      color: rgba(255, 255, 255, 0.78); font-size: 0.95rem; line-height: 1.6;
+      margin-top: 14px; max-width: 400px;
+    }
+
+    .brand-bottom { position: relative; z-index: 1; display: flex; gap: 28px; }
+    .brand-stat { color: #fff; }
+    .brand-stat b { display: block; font-family: 'Sora'; font-size: 1.25rem; font-weight: 800; letter-spacing: -0.02em; }
+    .brand-stat span { font-size: 0.68rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: rgba(255, 255, 255, 0.65); }
+
+    /* ---------- FORM PANEL ---------- */
+    .form-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 48px clamp(28px, 6vw, 88px);
+      position: relative;
+    }
+    .form-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(600px 400px at 90% 0%, rgba(16, 185, 129, 0.08), transparent 60%),
+        radial-gradient(500px 400px at 0% 100%, rgba(217, 119, 6, 0.05), transparent 60%);
+      pointer-events: none;
+    }
+
+    .form-inner { position: relative; width: 100%; max-width: 400px; margin: 0 auto; }
+
+    .form-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.65rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--primary-2);
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 6px 14px; border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .form-eyebrow .status-dot { width: 6px; height: 6px; }
+
+    .form-title {
+      font-family: 'Sora'; font-size: clamp(1.7rem, 3vw, 2.2rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+    }
+    .form-sub { color: var(--muted); font-size: 0.92rem; line-height: 1.55; margin: 10px 0 30px; }
+
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap > i {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      color: var(--faint); font-size: 0.95rem; pointer-events: none;
+      transition: color 0.25s var(--ease);
+    }
+    .input-icon-wrap .input { padding-left: 44px; }
+    .input-icon-wrap .input:focus + i,
+    .input-icon-wrap:focus-within > i { color: var(--primary-2); }
+
+    .form-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      margin: 2px 0 22px;
+    }
+    .remember-me { display: inline-flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--muted); cursor: pointer; user-select: none; }
+    .remember-me input { accent-color: var(--primary); width: 15px; height: 15px; cursor: pointer; }
+    .forgot-link { color: var(--primary-2); font-size: 0.82rem; font-weight: 700; text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; }
+
+    .btn-signin { padding: 15px 22px; font-size: 1rem; border-radius: 14px; }
+    .btn-signin i { transition: transform 0.25s var(--ease); }
+    .btn-signin:hover i { transform: translateX(3px); }
+
+    .form-divider {
+      display: flex; align-items: center; gap: 14px;
+      margin: 26px 0; color: var(--faint);
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .form-divider::before, .form-divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(14, 42, 31, 0.15), transparent);
+    }
+
+    .auth-switch { text-align: center; font-size: 0.88rem; color: var(--muted); }
+    .auth-switch a { color: var(--primary-2); font-weight: 800; text-decoration: none; }
+    .auth-switch a:hover { text-decoration: underline; }
+
+    .form-foot {
+      margin-top: 40px; text-align: center;
+      color: var(--faint); font-size: 0.68rem; letter-spacing: 0.1em; font-weight: 600;
+    }
+    .form-foot i { color: var(--primary-2); margin-right: 6px; }
+
+    /* ---------- MOBILE ---------- */
+    @media (max-width: 899px) {
+      .auth-stage { grid-template-columns: 1fr; }
+      .brand-panel {
+        padding: 28px 22px 30px;
+        align-items: center; text-align: center;
+        gap: 18px;
+      }
+      .brand-panel::before { mask-image: none; -webkit-mask-image: none; opacity: 0.6; }
+      .brand-top { justify-content: center; }
+      .brand-center { display: flex; flex-direction: column; align-items: center; }
+      .brand-logo-img { width: 132px; border-radius: 14px; margin-top: 4px; }
+      .brand-headline { font-size: 1.35rem; margin-top: 16px; max-width: 320px; }
+      .brand-tagline { font-size: 0.82rem; margin-top: 8px; max-width: 300px; }
+      .brand-bottom { display: none; }
+      .form-panel { padding: 26px 20px calc(28px + env(safe-area-inset-bottom)); }
+      .form-inner { max-width: 100%; }
+      .form-eyebrow { margin-bottom: 14px; }
+      .form-title { font-size: 1.55rem; }
+      .form-sub { margin-bottom: 22px; }
+    }
+
+    @media (max-width: 380px) {
+      .brand-logo-img { width: 112px; }
+      .brand-headline { font-size: 1.2rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="auth-wrap">
-    <div class="auth-card">
-      <div class="auth-logo"><span class="coin">3M</span> 3M<span class="bolt">⚡</span></div>
-      <div class="auth-title">Welcome back</div>
-      <div class="auth-sub">Sign in to enter the operations console</div>
+  <div class="auth-stage">
 
-      <form id="login-form">
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="email" class="input" placeholder="you@example.com" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" id="password" class="input" placeholder="••••••••" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
-          <i class="fa-solid fa-right-to-bracket"></i> Sign In
-        </button>
-      </form>
+    <!-- BRAND PANEL -->
+    <aside class="brand-panel">
+      <div class="brand-top">
+        <span class="brand-mark">3M</span>
+        <span class="brand-name">3M Operations<small>MINING CONSOLE</small></span>
+      </div>
 
-      <div class="forgot-row"><a href="#" id="forgot">Forgot password?</a></div>
-      <div class="auth-switch">New to 3M? <a href="/register.html">Create account</a></div>
-    </div>
+      <div class="brand-center">
+        <img class="brand-logo-img" src="https://www.aviatec.net/images/j2store/products/diffusees/3m.png" alt="3M">
+        <h2 class="brand-headline">Powering the next generation of <em>distributed mining</em>.</h2>
+        <p class="brand-tagline">Monitor machines, track rewards, and manage your entire operation from one premium console.</p>
+      </div>
+
+      <div class="brand-bottom">
+        <div class="brand-stat"><b>99.9%</b><span>Uptime</span></div>
+        <div class="brand-stat"><b>24/7</b><span>Monitoring</span></div>
+        <div class="brand-stat"><b>Global</b><span>Network</span></div>
+      </div>
+    </aside>
+
+    <!-- FORM PANEL -->
+    <main class="form-panel">
+      <div class="form-inner">
+        <span class="form-eyebrow"><span class="status-dot"></span> Operations Console</span>
+        <h1 class="form-title">Welcome back</h1>
+        <p class="form-sub">Sign in to access your dashboard and continue mining.</p>
+
+        <form id="login-form">
+          <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <div class="input-icon-wrap">
+              <input type="email" id="email" class="input" placeholder="you@example.com" autocomplete="email" required>
+              <i class="fa-solid fa-envelope"></i>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <div class="input-icon-wrap">
+              <input type="password" id="password" class="input" placeholder="••••••••" autocomplete="current-password" required>
+              <i class="fa-solid fa-lock"></i>
+            </div>
+          </div>
+
+          <div class="form-meta">
+            <label class="remember-me"><input type="checkbox" id="remember"> Remember me</label>
+            <a href="#" class="forgot-link" id="forgot">Forgot password?</a>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-signin" id="submit-btn">
+            Sign In <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </form>
+
+        <div class="form-divider">New to 3M?</div>
+        <div class="auth-switch">Don't have an account? <a href="/register.html">Create one in seconds</a></div>
+
+        <div class="form-foot"><i class="fa-solid fa-shield-halved"></i> SECURE · ENCRYPTED · 256-BIT TLS</div>
+      </div>
+    </main>
   </div>
 
   <script src="/assets/js/notifications.js"></script>
@@ -71,7 +288,7 @@
       if (error) {
         showToast(error.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Sign In';
+        btn.innerHTML = 'Sign In <i class="fa-solid fa-arrow-right"></i>';
         return;
       }
 
