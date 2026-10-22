@@ -243,3 +243,65 @@ a { color: inherit; }
 .divider { height: 1px; background: var(--border); margin: 18px 0; }
 .list-row { display: flex; justify-content: space-between; align-items: center; padding: 13px 0; border-bottom: 1px solid var(--border); font-size: .9rem; }
 .list-row:last-child { border-bottom: none; }
+
+/* ===== 3M MINING OPERATIONS THEME ===== */
+:root {
+  --bg: #071016;
+  --surface: #0d1b24;
+  --surface-2: #132936;
+  --primary: #38e8ff;
+  --primary-dim: rgba(56, 232, 255, 0.14);
+  --gold: #ffb84a;
+  --gold-dim: rgba(255, 184, 74, 0.15);
+  --success: #54e38e;
+  --danger: #ff6b7a;
+  --warning: #ffb84a;
+  --text: #edf8fb;
+  --muted: #88a5b2;
+  --border: rgba(56, 232, 255, 0.16);
+  --radius: 18px;
+}
+body {
+  background:
+    radial-gradient(900px 500px at 100% -5%, rgba(56,232,255,.13), transparent 62%),
+    radial-gradient(760px 420px at -10% 35%, rgba(255,184,74,.08), transparent 62%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.012) 0 1px, transparent 1px 9px),
+    var(--bg);
+}
+.apm-header { background: rgba(7,16,22,.9); border-bottom-color: rgba(56,232,255,.18); }
+.apm-logo { letter-spacing: .02em; }
+.apm-logo .coin, .auth-logo .coin {
+  border-radius: 11px;
+  background: linear-gradient(135deg, #38e8ff, #138bb2);
+  color: #041017;
+  box-shadow: 0 0 22px rgba(56,232,255,.36);
+}
+.apm-logo .bolt, .auth-logo .bolt { color: var(--gold); }
+.apm-nav { background: rgba(7,16,22,.96); border-top-color: rgba(56,232,255,.18); }
+.apm-nav a.active { color: var(--primary); }
+.apm-nav a.center .nav-bubble { background: linear-gradient(135deg, #38e8ff, #138bb2); box-shadow: 0 8px 24px rgba(56,232,255,.38); }
+.hero-card, .bank-card {
+  background: linear-gradient(135deg, #0c2934, #10252e 58%, #2a2114);
+  border-color: rgba(56,232,255,.32);
+  box-shadow: 0 18px 54px rgba(0,0,0,.22), 0 0 36px rgba(56,232,255,.08);
+}
+.hero-card::before { background: radial-gradient(400px 220px at 78% 0%, rgba(56,232,255,.14), transparent 60%); }
+.hero-amount, .mint { color: var(--primary); }
+.gold { color: var(--gold); }
+.btn-primary { background: linear-gradient(135deg, #38e8ff, #159bbb); box-shadow: 0 8px 24px rgba(56,232,255,.24); }
+.btn-gold { background: linear-gradient(135deg, #ffc766, #d48725); box-shadow: 0 8px 24px rgba(255,184,74,.24); }
+.btn-ghost { background: rgba(19,41,54,.86); }
+.card, .stat-card, .task-card, .feature-card, .step-card, .pkg-card { box-shadow: inset 0 1px rgba(255,255,255,.025); }
+.section-title i, .quick-tile i, .feature-card i { color: var(--primary); }
+.task-card { position: relative; overflow: hidden; border-color: rgba(56,232,255,.16); }
+.task-card::after { content: ''; position: absolute; inset: 0 0 auto; height: 2px; background: linear-gradient(90deg, transparent, rgba(56,232,255,.8), transparent); opacity: .65; }
+.task-card:hover { border-color: rgba(56,232,255,.5); transform: translateY(-2px); }
+.task-icon { background: linear-gradient(135deg, rgba(56,232,255,.2), rgba(19,139,178,.18)); color: var(--primary); }
+.task-reward { color: var(--gold); }
+.streak-card { background: linear-gradient(135deg, #102b35, #2a2114); border-color: rgba(255,184,74,.28); }
+.claim-btn { background: linear-gradient(135deg, #38e8ff, #159bbb); box-shadow: 0 6px 18px rgba(56,232,255,.22); }
+.claim-btn.done { background: rgba(56,232,255,.12); color: var(--primary); border-color: rgba(56,232,255,.35); }
+.chip.mint { color: var(--primary); border-color: rgba(56,232,255,.3); }
+.chip.gold { color: var(--gold); border-color: rgba(255,184,74,.3); }
+.auth-card { border-color: rgba(56,232,255,.2); }
+.input:focus, .select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-dim); }
