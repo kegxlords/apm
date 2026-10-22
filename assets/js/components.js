@@ -6,7 +6,7 @@ function headerHTML() {
   return `
     <header class="apm-header">
       <a href="/dashboard.html" class="apm-logo">
-        <span class="coin">M</span> MMM<span class="bolt">⚡</span>
+        <span class="coin">3M</span> 3M<span class="bolt">⚡</span>
       </a>
       <div class="header-right">
         <span class="tier-badge" id="shell-tier">A0</span>
@@ -25,7 +25,7 @@ function navHTML() {
     <nav class="apm-nav">
       ${item('/dashboard.html', 'fa-solid fa-house', 'Home')}
       ${item('/wealth.html', 'fa-solid fa-gem', 'Wealth')}
-      ${item('/tasks.html', 'fa-solid fa-hand-pointer', 'Tasks', 'center')}
+      ${item('/tasks.html', 'fa-solid fa-hand-pointer', 'Machines', 'center')}
       ${item('/team.html', 'fa-solid fa-users', 'Team')}
       ${item('/profile.html', 'fa-solid fa-user', 'Profile')}
     </nav>`;
