@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MMM — Membership</title>
+  <title>3M — Membership</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -33,12 +33,12 @@
   <div id="header-container"></div>
   <div class="page">
     <h1 class="page-title">Membership</h1>
-    <p class="page-sub">Higher tier = more tasks per day & bigger pay per task.</p>
+    <p class="page-sub">Higher tier = more tasks per day & bigger pay per repair.</p>
 
     <div class="tier-hero">
       <div class="label">Current Tier</div>
       <div class="big" id="current-tier">A0</div>
-      <div class="muted" style="font-size:.85rem;" id="current-perks">Free member — basic tasks unlocked</div>
+      <div class="muted" style="font-size:.85rem;" id="current-perks">Free member — basic machines unlocked</div>
       <div id="current-expiry"></div>
     </div>
 
@@ -88,7 +88,7 @@
 
         const myStats = tierStats(myTier);
         document.getElementById('current-perks').textContent =
-          `${myStats.count} tasks unlocked • up to ₦${myStats.dailyTotal.toLocaleString()}/day`;
+          `${myStats.count} machines unlocked • up to ₦${myStats.dailyTotal.toLocaleString()}/day`;
 
         const expTxt = expiryText(myExpiry);
         document.getElementById('current-expiry').innerHTML = myTier === 'A0'
@@ -130,11 +130,11 @@
               <div class="tier-badge-lg">${t.tier}</div>
               <div class="tier-info">
                 <div class="tier-name">${t.description || t.tier + ' Member'}</div>
-                <div class="tier-meta">${limit > 0 ? limit : stats.count} tasks/day • up to ₦${potential.toLocaleString()}/day</div>
+                <div class="tier-meta">${limit > 0 ? limit : stats.count} repairs/day • up to ₦${potential.toLocaleString()}/day</div>
                 <div class="perk-chips">
                   <span class="perk gold"><i class="fa-regular fa-clock"></i> ${expiry > 0 ? expiry + ' days' : 'Lifetime'}</span>
-                  <span class="perk mint"><i class="fa-solid fa-hand-pointer"></i> ${limit > 0 ? limit + ' tasks/day' : 'Unlimited tasks'}</span>
-                  <span class="perk gold"><i class="fa-solid fa-coins"></i> ${income > 0 ? '₦' + income.toLocaleString() + '/task' : 'Task rewards'}</span>
+                  <span class="perk mint"><i class="fa-solid fa-hand-pointer"></i> ${limit > 0 ? limit + ' repairs/day' : 'Unlimited tasks'}</span>
+                  <span class="perk gold"><i class="fa-solid fa-coins"></i> ${income > 0 ? '₦' + income.toLocaleString() + '/task' : 'Machine rewards'}</span>
                 </div>
               </div>
               <div style="text-align:right;">

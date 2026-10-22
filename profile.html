@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MMM — Profile</title>
+  <title>3M — Profile</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -33,7 +33,7 @@
     <div class="stats-grid">
       <div class="stat-card"><div class="stat-value gold" id="p-streak">0</div><div class="stat-label">Day Streak</div></div>
       <div class="stat-card"><div class="stat-value mint" id="p-earned">₦0</div><div class="stat-label">Total Earned</div></div>
-      <div class="stat-card"><div class="stat-value" id="p-tasks">0</div><div class="stat-label">Tasks Claimed</div></div>
+      <div class="stat-card"><div class="stat-value" id="p-tasks">0</div><div class="stat-label">Machines Repaired</div></div>
       <div class="stat-card"><div class="stat-value" id="p-team">0</div><div class="stat-label">Team</div></div>
     </div>
 
@@ -72,7 +72,7 @@
 
     const p = profileR.data || {};
     document.getElementById('avatar').textContent = (p.full_name || user.email || '?')[0].toUpperCase();
-    document.getElementById('p-name').textContent = p.full_name || 'MMM Member';
+    document.getElementById('p-name').textContent = p.full_name || '3M Member';
     document.getElementById('p-email').textContent = user.email || '';
     document.getElementById('p-tier').textContent = p.tier || 'A0';
     document.getElementById('p-since').textContent = 'Since ' + new Date(p.created_at || Date.now()).toLocaleDateString('en-NG', { month: 'short', year: 'numeric' });

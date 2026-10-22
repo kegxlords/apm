@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MMM — Dashboard</title>
+  <title>3M — Dashboard</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -48,11 +48,11 @@
       <div class="stat-card"><div class="stat-value mint" id="stat-today">₦0</div><div class="stat-label">Earned Today</div></div>
       <div class="stat-card"><div class="stat-value gold" id="stat-total">₦0</div><div class="stat-label">Total Earned</div></div>
       <div class="stat-card"><div class="stat-value" id="stat-team">0</div><div class="stat-label">Team Members</div></div>
-      <div class="stat-card"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Tasks Claimed</div></div>
+      <div class="stat-card"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Machines Repaired</div></div>
     </div>
 
     <div class="quick-grid">
-      <a href="/tasks.html" class="quick-tile"><i class="fa-solid fa-hand-pointer"></i>Tasks</a>
+      <a href="/tasks.html" class="quick-tile"><i class="fa-solid fa-hand-pointer"></i>Machines</a>
       <a href="/wealth.html" class="quick-tile gold"><i class="fa-solid fa-gem"></i>Wealth</a>
       <a href="/membership.html" class="quick-tile gold"><i class="fa-solid fa-crown"></i>Tiers</a>
       <a href="/team.html" class="quick-tile"><i class="fa-solid fa-users"></i>Team</a>
@@ -68,7 +68,7 @@
   <div class="modal-overlay" id="welcome-modal">
     <div class="modal" style="text-align:center;">
       <div class="welcome-emoji">🎉</div>
-      <h3 style="font-family:'Sora'; margin:10px 0 6px;">Welcome to MMM!</h3>
+      <h3 style="font-family:'Sora'; margin:10px 0 6px;">Welcome to 3M Mining!</h3>
       <p class="muted" style="font-size:.9rem; line-height:1.5;">
         Join our official Telegram group for daily updates, payment proofs and exclusive member bonuses.
       </p>
@@ -145,7 +145,7 @@
       const card = document.getElementById('activity-card');
       const txns = txnsR.data || [];
       if (!txns.length) {
-        card.innerHTML = '<div class="empty-state"><i class="fa-solid fa-receipt"></i>No activity yet. Claim your first task!</div>';
+        card.innerHTML = '<div class="empty-state"><i class="fa-solid fa-receipt"></i>No activity yet. Repair your first task!</div>';
       } else {
         card.innerHTML = txns.map(t => {
           const meta = TYPE_META[t.type] || TYPE_META.task_claim;

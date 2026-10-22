@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MMM — Task Center</title>
+  <title>3M — Machine Bay</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -62,15 +62,15 @@
   <div id="header-container"></div>
 
   <div class="page">
-    <h1 class="page-title">Task Center</h1>
-    <p class="page-sub">Tap. Claim. Get paid. New tasks daily.</p>
+    <h1 class="page-title">Machine Bay</h1>
+    <p class="page-sub">Inspect the fleet. Repair a unit. Get paid when the job closes.</p>
 
     <div class="streak-card">
       <div class="streak-left">
         <span class="flame">🔥</span>
         <div>
           <div class="streak-num" id="streak-num">0 days</div>
-          <div class="streak-lbl">Claim streak — keep it alive!</div>
+          <div class="streak-lbl">Repair streak — keep it alive!</div>
         </div>
       </div>
       <div class="today-earn">
@@ -81,7 +81,7 @@
 
     <div class="info-chips" id="info-chips"></div>
 
-    <div class="section-title"><i class="fa-solid fa-hand-pointer"></i> Today's Tasks</div>
+    <div class="section-title"><i class="fa-solid fa-screwdriver-wrench"></i> Machines awaiting repair</div>
     <div id="task-list">
       <div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tasks...</div>
     </div>
@@ -97,7 +97,7 @@
 
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
 
-    async function loadTasks() {
+    async function loadMachines() {
       const list = document.getElementById('task-list');
       list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tasks...</div>';
       try {
@@ -116,9 +116,9 @@
         const limit = Number(data.daily_limit || 0);
         const used = Number(data.claims_today || 0);
         const limitReached = limit > 0 && used >= limit;
-        chips.push(`<span class="chip ${limitReached ? 'full' : 'mint'}"><i class="fa-solid fa-hand-pointer"></i> Tasks today: ${used}${limit > 0 ? ' / ' + limit : ' (unlimited)'}</span>`);
+        chips.push(`<span class="chip ${limitReached ? 'full' : 'mint'}"><i class="fa-solid fa-screwdriver-wrench"></i> Repairs today: ${used}${limit > 0 ? ' / ' + limit : ' (unlimited)'}</span>`);
         if (Number(data.task_bonus || 0) > 0) {
-          chips.push(`<span class="chip gold"><i class="fa-solid fa-coins"></i> ₦${Number(data.task_bonus).toLocaleString()} per task (${data.tier} rate)</span>`);
+          chips.push(`<span class="chip gold"><i class="fa-solid fa-coins"></i> ₦${Number(data.task_bonus).toLocaleString()} per repair (${data.tier} rate)</span>`);
         }
         if (data.tier_expires_at) {
           const days = Math.ceil((new Date(data.tier_expires_at) - Date.now()) / 86400000);
@@ -127,22 +127,32 @@
         document.getElementById('info-chips').innerHTML = chips.join('');
 
         if (!data.tasks.length) {
-          list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-inbox"></i>No tasks available right now. Check back soon!</div>';
+          list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-inbox"></i>No machines are waiting for repair. Check back soon!</div>';
           return;
         }
 
-        list.innerHTML = data.tasks.map(t => {
+        const machineNames = [
+          'Autonomous Haul Truck', 'Primary Crusher', 'Hydraulic Drill Rig',
+          'Conveyor Drive System', 'Ore Sorter Array', 'Ventilation Control Unit'
+        ];
+        const machineIcons = [
+          'fa-solid fa-truck-monster', 'fa-solid fa-gears', 'fa-solid fa-bore-hole',
+          'fa-solid fa-road', 'fa-solid fa-filter-circle-dollar', 'fa-solid fa-fan'
+        ];
+        list.innerHTML = data.tasks.map((t, index) => {
+          const machineName = machineNames[index % machineNames.length];
+          const machineIcon = machineIcons[index % machineIcons.length];
           let btn;
           if (t.locked) btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> ${t.min_tier}</button>`;
-          else if (t.claimed_today) btn = `<button class="claim-btn done" disabled><i class="fa-solid fa-check"></i> Claimed</button>`;
+          else if (t.claimed_today) btn = `<button class="claim-btn done" disabled><i class="fa-solid fa-check"></i> Repaired</button>`;
           else if (limitReached) btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> Limit reached</button>`;
-          else btn = `<button class="claim-btn" onclick="claimTask('${t.id}', this)">Claim ₦${t.effective_reward.toLocaleString()}</button>`;
+          else btn = `<button class="claim-btn" onclick="claimMachine('${t.id}', this)">Repair ₦${t.effective_reward.toLocaleString()}</button>`;
           return `
             <div class="task-card ${t.locked ? 'locked' : ''} ${t.claimed_today ? 'claimed' : ''}" id="card-${t.id}">
-              <div class="task-icon"><i class="${t.icon}"></i></div>
+              <div class="task-icon"><i class="${machineIcon}"></i></div>
               <div class="task-info">
-                <div class="task-title">${t.title}</div>
-                <div class="task-desc">${t.description || ''}</div>
+                <div class="task-title">${machineName}</div>
+                <div class="task-desc">${t.description || 'Run diagnostics, restore this unit, and return it to production.'}</div>
               </div>
               ${btn}
             </div>`;
@@ -180,7 +190,7 @@
       setTimeout(() => pop.remove(), 950);
     }
 
-    window.claimTask = async (taskId, btn) => {
+    window.claimMachine = async (taskId, btn) => {
       btn.disabled = true;
       btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
       try {
@@ -198,20 +208,20 @@
         const rect = btn.getBoundingClientRect();
         celebrate(rect.left + rect.width / 2, rect.top + rect.height / 2, data.amount);
         btn.className = 'claim-btn done';
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> Claimed';
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Repaired';
         document.getElementById(`card-${taskId}`)?.classList.add('claimed');
-        showToast(`+₦${data.amount.toLocaleString()} claimed! 🔥 ${data.streak}-day streak`, 'gold');
-        loadTasks();
+        showToast(`+₦${data.amount.toLocaleString()} repair reward credited! 🔧 ${data.streak}-day streak`, 'gold');
+        loadMachines();
         window.APMShell?.refresh();
       } catch (err) {
-        console.error('[TASKS] Claim failed:', err);
+        console.error('[TASKS] Repair failed:', err);
         showToast(err.message, 'error');
         btn.disabled = false;
-        btn.textContent = 'Claim';
+        btn.textContent = 'Repair';
       }
     };
 
-    loadTasks();
+    loadMachines();
   </script>
 </body>
 </html>

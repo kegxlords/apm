@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>MMM — Wealth Center</title>
+  <title>3M — Wealth Center</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
@@ -87,7 +87,7 @@
             let btn;
             if (ended) btn = '<span class="badge badge-gray">Completed</span>';
             else if (collected) btn = '<button class="btn btn-sm btn-ghost" disabled><i class="fa-solid fa-check"></i> Collected</button>';
-            else btn = `<button class="btn btn-sm btn-primary" onclick="claimReturn('${i.id}', this)"><i class="fa-solid fa-coins"></i> Claim ₦${Number(i.wealth_packages?.daily_return || 0).toLocaleString()}</button>`;
+            else btn = `<button class="btn btn-sm btn-primary" onclick="claimReturn('${i.id}', this)"><i class="fa-solid fa-coins"></i> Repair ₦${Number(i.wealth_packages?.daily_return || 0).toLocaleString()}</button>`;
             return `
               <div class="inv-row">
                 <div class="inv-info">
@@ -157,7 +157,7 @@
         window.APMShell?.refresh();
         load();
       } catch (err) {
-        console.error('[WEALTH] Claim failed:', err);
+        console.error('[WEALTH] Repair failed:', err);
         showToast(err.message, 'error');
         btn.disabled = false;
         btn.innerHTML = original;
