@@ -2,57 +2,303 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>3M — Create Account</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
-  <meta name="theme-color" content="#0B1210">
+  <meta name="theme-color" content="#E9F4EC">
   <style>
+    /* ============================================================
+       3M CREATE ACCOUNT — full-viewport premium layout (no card)
+       Desktop: split screen · brand panel + form panel
+       Mobile:  brand header, edge-to-edge form
+       ============================================================ */
+
     body { padding-bottom: 0; }
-    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
-    .auth-card { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--border); border-radius: 28px; padding: 32px 26px; box-shadow: 0 24px 80px rgba(0,0,0,.45); }
-    .auth-logo { display: flex; align-items: center; justify-content: center; gap: 10px; font-family: 'Sora'; font-weight: 800; font-size: 1.5rem; }
-    .auth-logo .coin { width: 46px; height: 46px; border-radius: 14px; background: linear-gradient(135deg, var(--primary), #00A86B); display: grid; place-items: center; color: #04110B; font-size: 1.3rem; box-shadow: 0 0 24px rgba(0,224,138,.4); }
-    .auth-logo .bolt { color: var(--gold); }
-    .auth-title { text-align: center; font-size: 1.3rem; font-weight: 800; margin: 16px 0 4px; }
-    .auth-sub { text-align: center; color: var(--muted); font-size: .88rem; margin-bottom: 24px; }
-    .auth-switch { text-align: center; margin-top: 18px; font-size: .88rem; color: var(--muted); }
-    .auth-switch a { color: var(--primary); font-weight: 700; text-decoration: none; }
-    .ref-hint { font-size: .75rem; color: var(--muted); margin-top: 6px; }
+
+    .auth-stage {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+    }
+
+    /* ---------- BRAND PANEL ---------- */
+    .brand-panel {
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 48px 56px;
+      background:
+        radial-gradient(900px 600px at 20% 10%, rgba(16, 185, 129, 0.35), transparent 60%),
+        radial-gradient(700px 500px at 90% 90%, rgba(217, 119, 6, 0.18), transparent 60%),
+        linear-gradient(160deg, #0E3B2C 0%, #10B981 55%, #6EE7B7 100%);
+    }
+    .brand-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+      background-size: 44px 44px;
+      mask-image: radial-gradient(ellipse at 30% 30%, black 20%, transparent 75%);
+      -webkit-mask-image: radial-gradient(ellipse at 30% 30%, black 20%, transparent 75%);
+      pointer-events: none;
+    }
+    .brand-panel::after {
+      content: '';
+      position: absolute; top: -30%; right: -20%;
+      width: 70%; height: 90%;
+      background: radial-gradient(closest-side, rgba(255, 255, 255, 0.14), transparent);
+      pointer-events: none;
+    }
+
+    .brand-top { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; }
+    .brand-top .brand-mark {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: rgba(255, 255, 255, 0.16);
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      display: grid; place-items: center;
+      color: #fff; font-family: 'Sora'; font-weight: 800; font-size: 0.95rem;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    }
+    .brand-top .brand-name {
+      color: #fff; font-family: 'Sora'; font-weight: 800; font-size: 1.15rem;
+      letter-spacing: -0.01em;
+    }
+    .brand-top .brand-name small {
+      display: block; font-family: 'Inter'; font-weight: 700; font-size: 0.55rem;
+      letter-spacing: 0.22em; color: rgba(255, 255, 255, 0.65); margin-top: 3px;
+    }
+
+    .brand-center { position: relative; z-index: 1; }
+    .brand-logo-img {
+      width: min(300px, 60%);
+      filter: drop-shadow(0 24px 48px rgba(0, 0, 0, 0.25));
+      border-radius: 20px;
+    }
+    .brand-headline {
+      color: #fff; font-family: 'Sora'; font-weight: 800;
+      font-size: clamp(1.6rem, 2.6vw, 2.4rem);
+      letter-spacing: -0.03em; line-height: 1.15;
+      margin-top: 28px; max-width: 420px;
+    }
+    .brand-headline em { font-style: normal; color: #FDE68A; }
+    .brand-tagline {
+      color: rgba(255, 255, 255, 0.78); font-size: 0.95rem; line-height: 1.6;
+      margin-top: 14px; max-width: 400px;
+    }
+
+    .brand-perks { position: relative; z-index: 1; display: grid; gap: 14px; }
+    .brand-perk { display: flex; align-items: center; gap: 12px; color: #fff; }
+    .brand-perk i {
+      width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      display: grid; place-items: center; font-size: 0.85rem;
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    }
+    .brand-perk div b { display: block; font-size: 0.88rem; font-weight: 800; letter-spacing: -0.01em; }
+    .brand-perk div span { font-size: 0.72rem; color: rgba(255, 255, 255, 0.7); }
+
+    /* ---------- FORM PANEL ---------- */
+    .form-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 48px clamp(28px, 6vw, 88px);
+      position: relative;
+      overflow-y: auto;
+    }
+    .form-panel::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(600px 400px at 90% 0%, rgba(16, 185, 129, 0.08), transparent 60%),
+        radial-gradient(500px 400px at 0% 100%, rgba(217, 119, 6, 0.05), transparent 60%);
+      pointer-events: none;
+    }
+
+    .form-inner { position: relative; width: 100%; max-width: 400px; margin: auto; }
+
+    .form-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 0.65rem; font-weight: 800; letter-spacing: 0.16em; text-transform: uppercase;
+      color: var(--primary-2);
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      padding: 6px 14px; border-radius: 999px;
+      margin-bottom: 20px;
+    }
+    .form-eyebrow .status-dot { width: 6px; height: 6px; }
+
+    .form-title {
+      font-family: 'Sora'; font-size: clamp(1.7rem, 3vw, 2.2rem);
+      font-weight: 800; letter-spacing: -0.03em; line-height: 1.15;
+    }
+    .form-sub { color: var(--muted); font-size: 0.92rem; line-height: 1.55; margin: 10px 0 28px; }
+
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap > i {
+      position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+      color: var(--faint); font-size: 0.95rem; pointer-events: none;
+      transition: color 0.25s var(--ease);
+    }
+    .input-icon-wrap .input { padding-left: 44px; }
+    .input-icon-wrap:focus-within > i { color: var(--primary-2); }
+
+    .ref-hint { font-size: 0.75rem; color: var(--muted); margin-top: 8px; display: flex; align-items: center; gap: 6px; }
+    .ref-hint i { color: var(--gold); font-size: 0.7rem; }
+    .ref-hint.applied { color: var(--primary-2); font-weight: 700; }
+
+    .btn-create { padding: 15px 22px; font-size: 1rem; border-radius: 14px; }
+    .btn-create i { transition: transform 0.25s var(--ease); }
+    .btn-create:hover i { transform: translateX(3px); }
+
+    .form-divider {
+      display: flex; align-items: center; gap: 14px;
+      margin: 24px 0; color: var(--faint);
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    }
+    .form-divider::before, .form-divider::after {
+      content: ''; flex: 1; height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(14, 42, 31, 0.15), transparent);
+    }
+
+    .auth-switch { text-align: center; font-size: 0.88rem; color: var(--muted); }
+    .auth-switch a { color: var(--primary-2); font-weight: 800; text-decoration: none; }
+    .auth-switch a:hover { text-decoration: underline; }
+
+    .form-foot {
+      margin-top: 32px; text-align: center;
+      color: var(--faint); font-size: 0.68rem; letter-spacing: 0.1em; font-weight: 600;
+    }
+    .form-foot i { color: var(--primary-2); margin-right: 6px; }
+
+    /* ---------- SUCCESS STATE ---------- */
+    .success-panel { text-align: center; padding: 20px 0; }
+    .success-icon {
+      width: 76px; height: 76px; margin: 0 auto 22px; border-radius: 22px;
+      background: linear-gradient(150deg, #6EE7B7, #10B981 40%, #047857);
+      display: grid; place-items: center;
+      color: #fff; font-size: 1.9rem;
+      box-shadow: 0 12px 32px rgba(16, 185, 129, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.5);
+      animation: pop 0.45s var(--ease);
+    }
+    .success-title { font-family: 'Sora'; font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+    .success-sub { color: var(--muted); font-size: 0.9rem; line-height: 1.6; margin: 10px 0 26px; }
+    .success-sub b { color: var(--primary-2); }
+
+    /* ---------- MOBILE ---------- */
+    @media (max-width: 899px) {
+      .auth-stage { grid-template-columns: 1fr; }
+      .brand-panel {
+        padding: 26px 22px 28px;
+        align-items: center; text-align: center;
+        gap: 16px;
+      }
+      .brand-panel::before { mask-image: none; -webkit-mask-image: none; opacity: 0.6; }
+      .brand-top { justify-content: center; }
+      .brand-center { display: flex; flex-direction: column; align-items: center; }
+      .brand-logo-img { width: 120px; border-radius: 14px; margin-top: 2px; }
+      .brand-headline { font-size: 1.25rem; margin-top: 14px; max-width: 320px; }
+      .brand-tagline { font-size: 0.8rem; margin-top: 6px; max-width: 300px; }
+      .brand-perks { display: none; }
+      .form-panel { padding: 24px 20px calc(28px + env(safe-area-inset-bottom)); }
+      .form-inner { max-width: 100%; }
+      .form-eyebrow { margin-bottom: 14px; }
+      .form-title { font-size: 1.5rem; }
+      .form-sub { margin-bottom: 20px; }
+    }
+
+    @media (max-width: 380px) {
+      .brand-logo-img { width: 104px; }
+      .brand-headline { font-size: 1.15rem; }
+    }
   </style>
 </head>
 <body>
-  <div class="auth-wrap">
-    <div class="auth-card">
-      <div class="auth-logo"><span class="coin">3M</span> 3M<span class="bolt">⚡</span></div>
-      <div class="auth-title">Create your account</div>
-      <div class="auth-sub">Free to join • Start repairing today</div>
+  <div class="auth-stage">
 
-      <form id="register-form">
-        <div class="form-group">
-          <label class="form-label">Full Name</label>
-          <input type="text" id="full-name" class="input" placeholder="Your full name" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Email</label>
-          <input type="email" id="email" class="input" placeholder="you@example.com" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Password</label>
-          <input type="password" id="password" class="input" placeholder="Min. 6 characters" minlength="6" required>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Referral Code <span class="muted">(optional)</span></label>
-          <input type="text" id="referral-code" class="input" placeholder="e.g. A1B2C3D4" maxlength="8" style="text-transform: uppercase;">
-          <div class="ref-hint">Entered automatically if you arrived via an invite link.</div>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block" id="submit-btn">
-          <i class="fa-solid fa-user-plus"></i> Create Account
-        </button>
-      </form>
+    <!-- BRAND PANEL -->
+    <aside class="brand-panel">
+      <div class="brand-top">
+        <span class="brand-mark">3M</span>
+        <span class="brand-name">3M Operations<small>MINING CONSOLE</small></span>
+      </div>
 
-      <div class="auth-switch">Already have an account? <a href="/login.html">Sign in</a></div>
-    </div>
+      <div class="brand-center">
+        <img class="brand-logo-img" src="https://www.aviatec.net/images/j2store/products/diffusees/3m.png" alt="3M">
+        <h2 class="brand-headline">Join the network. Start earning from <em>day one</em>.</h2>
+        <p class="brand-tagline">Create your free account, activate your first machine, and watch rewards accumulate in real time.</p>
+      </div>
+
+      <div class="brand-perks">
+        <div class="brand-perk">
+          <i class="fa-solid fa-gift"></i>
+          <div><b>Instant welcome bonus</b><span>Activated the moment you confirm your email</span></div>
+        </div>
+        <div class="brand-perk">
+          <i class="fa-solid fa-users"></i>
+          <div><b>Referral rewards</b><span>Earn commission on every machine your network runs</span></div>
+        </div>
+        <div class="brand-perk">
+          <i class="fa-solid fa-chart-line"></i>
+          <div><b>Real-time dashboard</b><span>Track hashrate, uptime, and payouts live</span></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- FORM PANEL -->
+    <main class="form-panel">
+      <div class="form-inner" id="form-inner">
+        <span class="form-eyebrow"><span class="status-dot"></span> Free to join</span>
+        <h1 class="form-title">Create your account</h1>
+        <p class="form-sub">Set up your profile in under a minute. No credit card required.</p>
+
+        <form id="register-form">
+          <div class="form-group">
+            <label class="form-label" for="full-name">Full Name</label>
+            <div class="input-icon-wrap">
+              <input type="text" id="full-name" class="input" placeholder="Your full name" autocomplete="name" required>
+              <i class="fa-solid fa-user"></i>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="email">Email</label>
+            <div class="input-icon-wrap">
+              <input type="email" id="email" class="input" placeholder="you@example.com" autocomplete="email" required>
+              <i class="fa-solid fa-envelope"></i>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <div class="input-icon-wrap">
+              <input type="password" id="password" class="input" placeholder="Min. 6 characters" minlength="6" autocomplete="new-password" required>
+              <i class="fa-solid fa-lock"></i>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="referral-code">Referral Code <span class="muted">(optional)</span></label>
+            <div class="input-icon-wrap">
+              <input type="text" id="referral-code" class="input" placeholder="e.g. A1B2C3D4" maxlength="8" style="text-transform: uppercase;" autocomplete="off">
+              <i class="fa-solid fa-ticket"></i>
+            </div>
+            <div class="ref-hint" id="ref-hint"><i class="fa-solid fa-circle-info"></i> Entered automatically if you arrived via an invite link.</div>
+          </div>
+
+          <button type="submit" class="btn btn-primary btn-block btn-create" id="submit-btn">
+            Create Account <i class="fa-solid fa-arrow-right"></i>
+          </button>
+        </form>
+
+        <div class="form-divider">Already registered?</div>
+        <div class="auth-switch">Have an account? <a href="/login.html">Sign in instead</a></div>
+
+        <div class="form-foot"><i class="fa-solid fa-shield-halved"></i> SECURE · ENCRYPTED · 256-BIT TLS</div>
+      </div>
+    </main>
   </div>
 
   <script src="/assets/js/notifications.js"></script>
@@ -61,7 +307,13 @@
 
     // Pre-fill referral code from ?ref=CODE
     const urlRef = new URLSearchParams(location.search).get('ref');
-    if (urlRef) document.getElementById('referral-code').value = urlRef.toUpperCase();
+    if (urlRef) {
+      const refInput = document.getElementById('referral-code');
+      refInput.value = urlRef.toUpperCase();
+      const hint = document.getElementById('ref-hint');
+      hint.innerHTML = '<i class="fa-solid fa-circle-check"></i> Referral code applied from invite link.';
+      hint.classList.add('applied');
+    }
 
     // Already signed in? Skip
     const { data: { session } } = await supabase.auth.getSession();
@@ -89,7 +341,7 @@
       if (error) {
         showToast(error.message, 'error');
         btn.disabled = false;
-        btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create Account';
+        btn.innerHTML = 'Create Account <i class="fa-solid fa-arrow-right"></i>';
         return;
       }
 
@@ -98,12 +350,14 @@
         showToast('Account created! Welcome to 3M 🎉', 'gold');
         setTimeout(() => window.location.href = '/dashboard.html', 800);
       } else {
-        // Email confirmation enabled
-        document.querySelector('.auth-card').innerHTML = `
-          <div class="auth-logo"><span class="coin">3M</span> 3M<span class="bolt">⚡</span></div>
-          <div class="auth-title">Check your email 📬</div>
-          <div class="auth-sub">We sent a confirmation link to <b class="mint">${email}</b>.<br>Confirm it, then sign in to start earning.</div>
-          <a href="/login.html" class="btn btn-primary btn-block"><i class="fa-solid fa-right-to-bracket"></i> Go to Sign In</a>
+        // Email confirmation enabled — premium success state
+        document.getElementById('form-inner').innerHTML = `
+          <div class="success-panel">
+            <div class="success-icon"><i class="fa-solid fa-envelope-open-text"></i></div>
+            <div class="success-title">Check your email</div>
+            <div class="success-sub">We sent a confirmation link to <b>${email}</b>.<br>Confirm it, then sign in to activate your first machine.</div>
+            <a href="/login.html" class="btn btn-primary btn-block btn-create">Go to Sign In <i class="fa-solid fa-right-to-bracket"></i></a>
+          </div>
         `;
       }
     });
