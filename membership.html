@@ -15,7 +15,7 @@
     .package-card::before { content: ''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg,var(--gold),var(--primary)); }
     .package-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
     .package-name { font-family:var(--font-display); font-weight:800; font-size:1.05rem; }
-    .package-sub { margin-top:4px; color:var(--muted); font-size:.73rem; }
+    .package-sub { margin-top:4px; color:var(--muted); font-size:.73rem; line-height:1.45; }
     .package-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0 15px; }
     .package-cell { padding:10px 7px; border-radius:12px; background:rgba(255,255,255,.55); border:1px solid rgba(16,185,129,.14); text-align:center; }
     .package-cell b { display:block; color:var(--primary-2); font-family:var(--font-display); font-size:.88rem; }
@@ -34,8 +34,10 @@
       <p>Your capital and profit are paid together to your wallet when the package expires; neither is paid out before maturity. The 2-, 5-, and 10-day packages can be bought once each; other packages can be bought twice each.</p>
       <a href="/tasks.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-briefcase"></i> View Rented Machines</a>
     </section>
-    <div class="section-title"><i class="fa-solid fa-industry"></i> Available packages</div>
-    <div id="package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading Mining Machines...</div></div>
+    <div class="section-title"><i class="fa-solid fa-industry"></i> General Packages</div>
+    <div id="general-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading Mining Machines...</div></div>
+    <div class="section-title"><i class="fa-solid fa-bolt"></i> Limited Packages</div>
+    <div id="limited-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading limited offers...</div></div>
   </main>
   <div id="footer-container"></div>
   <script src="/assets/js/notifications.js"></script>
@@ -45,24 +47,46 @@
     await requireAuth();
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
     const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
-    const list = document.getElementById('package-list');
+    const generalList = document.getElementById('general-package-list');
+    const limitedList = document.getElementById('limited-package-list');
+    const formatAvailability = (value) => {
+      if (!value) return '';
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: 'short' });
+    };
+    function renderPackages(packages, target, limited) {
+      if (!packages.length) {
+        target.innerHTML = `<div class="empty-state"><i class="fa-solid ${limited ? 'fa-bolt' : 'fa-industry'}"></i>${limited ? 'No limited offers available right now.' : 'No general packages available right now.'}</div>`;
+        return;
+      }
+      target.innerHTML = packages.map((pkg) => {
+        const limitReached = pkg.purchases_remaining <= 0;
+        const disabled = !pkg.is_available || limitReached;
+        const status = pkg.coming_soon ? 'Coming Soon' : pkg.sold_out ? 'Sold out' : pkg.expired ? 'Offer expired' : limitReached ? 'Limit reached' : pkg.is_available ? 'Ready to purchase' : 'Unavailable';
+        const badge = pkg.coming_soon ? 'badge-amber' : disabled ? 'badge-gray' : limited ? 'badge-gold' : 'badge-mint';
+        const buttonLabel = pkg.coming_soon ? 'Coming Soon' : pkg.sold_out ? 'Sold out' : limitReached ? 'Limit reached' : pkg.is_available ? '<i class="fa-solid fa-cart-shopping"></i> Buy machine' : 'Unavailable';
+        const expected = Number(pkg.profit_at_maturity || 0);
+        const buyerLimit = limited ? `<div>Limited offer: <b>${Number(pkg.users_remaining || 0).toLocaleString('en-NG')}</b> of <b>${Number(pkg.max_users || 0).toLocaleString('en-NG')}</b> user slots remaining</div>` : '';
+        const opens = formatAvailability(pkg.available_from);
+        const closes = formatAvailability(pkg.available_until);
+        const timeWindow = limited && (opens || closes) ? `<div>${opens ? `Opens ${opens}` : 'Available now'}${closes ? ` • Closes ${closes}` : ''}</div>` : '';
+        const schedule = `${buyerLimit}${timeWindow}`;
+        return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Capital and profit paid only at maturity${schedule ? `<br>${schedule}` : ''}</div></div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Payout at maturity</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b>${!limited ? `<br>${pkg.purchases_remaining} purchase${pkg.purchases_remaining === 1 ? '' : 's'} remaining` : ''}</span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
+      }).join('');
+      target.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
+    }
     async function load() {
       try {
         const res = await fetch('/api/mining-machines?action=getPackages', { headers: { Authorization: `Bearer ${await token()}` } });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        if (!data.packages.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-industry"></i>No Mining Machines are available right now.</div>'; return; }
-        list.innerHTML = data.packages.map((pkg) => {
-          const limitReached = pkg.purchases_remaining <= 0;
-          const disabled = !pkg.is_available || limitReached;
-          const status = pkg.coming_soon ? 'Coming Soon' : limitReached ? 'Limit reached' : pkg.is_available ? 'Ready to purchase' : 'Unavailable';
-          const badge = pkg.coming_soon ? 'badge-amber' : disabled ? 'badge-gray' : 'badge-mint';
-          const buttonLabel = pkg.coming_soon ? 'Coming Soon' : limitReached ? 'Limit reached' : pkg.is_available ? '<i class="fa-solid fa-cart-shopping"></i> Buy machine' : 'Unavailable';
-          const expected = Number(pkg.profit_at_maturity || 0);
-          return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Capital and profit paid only at maturity</div></div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Payout at maturity</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b></span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
-        }).join('');
-        list.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
-      } catch (error) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }
+        renderPackages(data.packages.filter((pkg) => !pkg.is_limited), generalList, false);
+        renderPackages(data.packages.filter((pkg) => pkg.is_limited), limitedList, true);
+      } catch (error) {
+        const message = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`;
+        generalList.innerHTML = message;
+        limitedList.innerHTML = message;
+      }
     }
     async function buy(button) {
       if (!confirm('Buy this Mining Machine? The full payout, including capital and profit, will be credited only when the package reaches maturity.')) return;
