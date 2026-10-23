@@ -101,6 +101,7 @@
       wealth_return:       { icon: 'fa-solid fa-gem',          bg: 'var(--gold-dim)', color: 'var(--gold)' },
       wealth_invest:       { icon: 'fa-solid fa-gem',          bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
       membership_upgrade:  { icon: 'fa-solid fa-crown',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
+      salary_bonus:        { icon: 'fa-solid fa-money-bill-trend-up', bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_credit:        { icon: 'fa-solid fa-user-shield',  bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_debit:         { icon: 'fa-solid fa-user-shield',  bg: 'rgba(255,90,90,.15)', color: 'var(--danger)' }
     };
@@ -135,7 +136,7 @@
       const todayEarned = (todayR.data || []).reduce((s, r) => s + Number(r.amount), 0);
       document.getElementById('stat-today').textContent = `₦${todayEarned.toLocaleString()}`;
 
-      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return'];
+      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return', 'salary_bonus'];
       const { data: allEarn } = await supabase.from('transactions').select('amount')
         .eq('user_id', user.id).eq('status', 'approved').in('type', earnTypes);
       document.getElementById('stat-total').textContent = `₦${(allEarn || []).reduce((s, r) => s + Number(r.amount), 0).toLocaleString()}`;
