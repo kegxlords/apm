@@ -536,7 +536,7 @@ body { padding-bottom: 24px; }
   .wallet-chip { padding: 6px 8px; font-size: 0.7rem; }
   .ops-sidebar { display: none; }
   .ops-mobile-nav {
-    position: fixed; display: grid; grid-template-columns: repeat(4, 1fr);
+    position: fixed; display: grid; grid-template-columns: repeat(5, 1fr);
     bottom: 0; left: 0; right: 0; z-index: 100;
     padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
     background: rgba(233, 244, 236, 0.85);
