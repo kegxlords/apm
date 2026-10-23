@@ -122,11 +122,15 @@
           <div class="form-group"><label class="form-label">Days</label><input type="number" class="input" id="wp-days"></div>
           <div class="form-group"><label class="form-label">Total payout at maturity ₦</label><input type="number" class="input" id="wp-total"></div>
           <div class="form-group"><label class="form-label">Status</label><select class="select" id="wp-active"><option value="true">Active — ready to purchase</option><option value="false">Inactive — coming soon</option></select></div>
+          <div class="form-group"><label class="form-label">Package group</label><select class="select" id="wp-limited"><option value="false">General package</option><option value="true">Limited package</option></select></div>
+          <div class="form-group"><label class="form-label">Maximum unique users (limited only)</label><input type="number" min="1" step="1" class="input" id="wp-max-users" placeholder="e.g. 25"></div>
+          <div class="form-group"><label class="form-label">Available from (optional)</label><input type="datetime-local" class="input" id="wp-available-from"></div>
+          <div class="form-group"><label class="form-label">Available until (optional)</label><input type="datetime-local" class="input" id="wp-available-until"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="savePackage()"><i class="fa-solid fa-plus"></i> Create Package</button>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Invest</th><th>Payout at Maturity</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Group / Capacity</th><th>Invest</th><th>Payout at Maturity</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="pkg-table"></tbody>
       </table></div>
       <h2 class="section-title" style="margin-top:24px;"><i class="fa-solid fa-briefcase"></i>Active Investments</h2>
@@ -264,8 +268,10 @@
       <div class="form-group"><label class="form-label">Investment ₦</label><input type="number" min="1" class="input" id="wp-edit-investment"></div>
       <div class="form-group"><label class="form-label">Duration (days)</label><input type="number" min="1" step="1" class="input" id="wp-edit-days"></div>
       <div class="form-group"><label class="form-label">Total payout at maturity ₦</label><input type="number" min="1" class="input" id="wp-edit-total"></div>
-      <div class="form-group"><label class="form-label">Start date (optional)</label><input type="date" class="input" id="wp-edit-start"></div>
-      <div class="form-group"><label class="form-label">End date (optional)</label><input type="date" class="input" id="wp-edit-end"></div>
+      <div class="form-group"><label class="form-label">Availability start (optional)</label><input type="datetime-local" class="input" id="wp-edit-available-from"></div>
+      <div class="form-group"><label class="form-label">Availability end (optional)</label><input type="datetime-local" class="input" id="wp-edit-available-until"></div>
+      <div class="form-group"><label class="form-label">Package group</label><select class="select" id="wp-edit-limited"><option value="false">General package</option><option value="true">Limited package</option></select></div>
+      <div class="form-group"><label class="form-label">Maximum unique users (limited only)</label><input type="number" min="1" step="1" class="input" id="wp-edit-max-users"></div>
       <div class="form-group"><label class="form-label">Availability</label><select class="select" id="wp-edit-active"><option value="true">Active — ready to purchase</option><option value="false">Inactive — coming soon</option></select></div>
     </div>
     <button class="btn btn-primary btn-block" onclick="savePackageEdit()"><i class="fa-solid fa-save"></i> Save Package</button>
@@ -539,21 +545,39 @@
 
     // ===== WEALTH =====
     let pkgCache = [];
+    const toAvailabilityISO = value => value ? new Date(value).toISOString() : null;
+    const toDateTimeLocal = (value, endOfDay = false) => {
+      if (!value) return '';
+      const text = String(value);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return `${text}T${endOfDay ? '23:59' : '00:00'}`;
+      const date = new Date(value);
+      if (Number.isNaN(date.getTime())) return '';
+      return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    };
     async function loadWealth() {
       const [{ packages }, { investments }] = await Promise.all([api('get-wealth-packages'), api('get-investments')]);
       pkgCache = packages;
-      const today = new Date().toISOString().slice(0, 10);
+      const now = Date.now();
       document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => {
-        const comingSoon = !p.is_active || (p.start_date && today < p.start_date);
-        const expired = p.end_date && today > p.end_date;
+        const comingSoon = !p.is_active || (p.available_from && Date.parse(p.available_from) > now)
+          || (!p.available_from && p.start_date && new Date().toISOString().slice(0, 10) < p.start_date);
+        const expired = (p.available_until && Date.parse(p.available_until) < now)
+          || (!p.available_until && p.end_date && new Date().toISOString().slice(0, 10) > p.end_date);
+        const soldOut = p.is_limited && Number(p.users_remaining) <= 0;
         const status = comingSoon
           ? '<span class="badge badge-amber">Coming soon</span>'
+          : soldOut
+            ? '<span class="badge badge-red">Sold out</span>'
           : expired
             ? '<span class="badge badge-gray">Expired</span>'
             : '<span class="badge badge-mint">Ready to purchase</span>';
+        const group = p.is_limited
+          ? `<span class="badge badge-gold">Limited</span><div class="muted" style="font-size:.7rem;margin-top:4px;">${p.buyers_count}/${p.max_users} users • ${p.users_remaining} left</div>${p.available_from ? `<div class="muted" style="font-size:.66rem;">From ${new Date(p.available_from).toLocaleString()}</div>` : ''}${p.available_until ? `<div class="muted" style="font-size:.66rem;">Until ${new Date(p.available_until).toLocaleString()}</div>` : ''}`
+          : '<span class="badge badge-gray">General</span>';
         return `
         <tr>
           <td><b>${p.name}</b></td>
+          <td>${group}</td>
           <td class="mint">${money(p.investment_amount)}</td>
           <td class="gold">${money(p.total_return)}</td>
           <td>${p.duration_days}</td>
@@ -563,7 +587,7 @@
             <button class="btn btn-danger btn-sm" onclick="delPackage('${p.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
         </tr>`;
-      }).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
+      }).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
       document.getElementById('inv-table').innerHTML = investments.length ? investments.map(i => `
         <tr>
           <td style="font-size:.82rem;">${i.profiles?.email || '—'}</td>
@@ -580,11 +604,16 @@
           investment_amount: document.getElementById('wp-inv').value,
           duration_days: document.getElementById('wp-days').value,
           total_return: document.getElementById('wp-total').value,
-          is_active: document.getElementById('wp-active').value === 'true'
+          is_active: document.getElementById('wp-active').value === 'true',
+          is_limited: document.getElementById('wp-limited').value === 'true',
+          max_users: document.getElementById('wp-max-users').value || null,
+          available_from: toAvailabilityISO(document.getElementById('wp-available-from').value),
+          available_until: toAvailabilityISO(document.getElementById('wp-available-until').value)
         })});
         showToast('Package created', 'success');
-        ['wp-name','wp-inv','wp-days','wp-total'].forEach(id => document.getElementById(id).value = '');
+        ['wp-name','wp-inv','wp-days','wp-total','wp-max-users','wp-available-from','wp-available-until'].forEach(id => document.getElementById(id).value = '');
         document.getElementById('wp-active').value = 'true';
+        document.getElementById('wp-limited').value = 'false';
         loadWealth();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -596,9 +625,11 @@
       document.getElementById('wp-edit-investment').value = p.investment_amount ?? '';
       document.getElementById('wp-edit-days').value = p.duration_days ?? '';
       document.getElementById('wp-edit-total').value = p.total_return ?? '';
-      document.getElementById('wp-edit-start').value = p.start_date ? String(p.start_date).slice(0, 10) : '';
-      document.getElementById('wp-edit-end').value = p.end_date ? String(p.end_date).slice(0, 10) : '';
+      document.getElementById('wp-edit-available-from').value = toDateTimeLocal(p.available_from || p.start_date);
+      document.getElementById('wp-edit-available-until').value = toDateTimeLocal(p.available_until || p.end_date, true);
       document.getElementById('wp-edit-active').value = p.is_active ? 'true' : 'false';
+      document.getElementById('wp-edit-limited').value = p.is_limited ? 'true' : 'false';
+      document.getElementById('wp-edit-max-users').value = p.max_users ?? '';
       document.getElementById('package-modal').classList.add('active');
     };
     window.savePackageEdit = async () => {
@@ -610,9 +641,11 @@
           investment_amount: document.getElementById('wp-edit-investment').value,
           duration_days: document.getElementById('wp-edit-days').value,
           total_return: document.getElementById('wp-edit-total').value,
-          start_date: document.getElementById('wp-edit-start').value || null,
-          end_date: document.getElementById('wp-edit-end').value || null,
-          is_active: document.getElementById('wp-edit-active').value === 'true'
+          is_active: document.getElementById('wp-edit-active').value === 'true',
+          is_limited: document.getElementById('wp-edit-limited').value === 'true',
+          max_users: document.getElementById('wp-edit-max-users').value || null,
+          available_from: toAvailabilityISO(document.getElementById('wp-edit-available-from').value),
+          available_until: toAvailabilityISO(document.getElementById('wp-edit-available-until').value)
         })});
         showToast('Package updated', 'success');
         closeModal('package-modal');
