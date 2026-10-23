@@ -3,6 +3,7 @@ import { verifyUser, getProfile } from '../lib/auth.js';
 
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 const today = () => new Date().toISOString().slice(0, 10);
+const purchaseLimit = (pkg) => [2, 5, 10].includes(Number(pkg.duration_days)) ? 1 : 2;
 
 export default async function handler(req, res) {
   try {
@@ -40,14 +41,16 @@ async function getPackages(userId, res) {
     packages: (packages || []).filter((pkg) => (!pkg.start_date || today() >= pkg.start_date) && (!pkg.end_date || today() <= pkg.end_date)).map((pkg) => ({
       ...pkg,
       purchase_count: counts[pkg.id] || 0,
-      purchases_remaining: Math.max(0, 3 - (counts[pkg.id] || 0))
+      purchase_limit: purchaseLimit(pkg),
+      purchases_remaining: Math.max(0, purchaseLimit(pkg) - (counts[pkg.id] || 0)),
+      profit_at_maturity: money(Math.max(0, Number(pkg.total_return || 0) - Number(pkg.investment_amount || 0)))
     }))
   });
 }
 
 async function getRented(userId, res) {
   const { data, error } = await supabaseAdmin.from('wealth_investments')
-    .select('*, wealth_packages(name, investment_amount, daily_return, duration_days)')
+    .select('*, wealth_packages(name, investment_amount, daily_return, total_return, duration_days)')
     .eq('user_id', userId)
     .order('purchased_at', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
@@ -57,6 +60,8 @@ async function getRented(userId, res) {
     amount: money(machine.amount),
     total_earned: money(machine.total_earned),
     daily_return: money(machine.wealth_packages?.daily_return),
+    maturity_total: money(machine.maturity_total ?? machine.wealth_packages?.total_return ?? machine.amount),
+    profit_at_maturity: money(Math.max(0, Number(machine.maturity_total ?? machine.wealth_packages?.total_return ?? machine.amount) - Number(machine.amount || 0))),
     purchase_time: machine.purchased_at || machine.created_at,
     next_income_at: machine.next_payout_at || null
   })) });
@@ -74,51 +79,40 @@ async function buyPackage(req, userId, res) {
   const { count, error: countError } = await supabaseAdmin.from('wealth_investments')
     .select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('package_id', package_id);
   if (countError) throw countError;
-  if ((count || 0) >= 3) return res.status(409).json({ error: 'Each Mining Machine package can only be bought 3 times.' });
+  const limit = purchaseLimit(pkg);
+  if ((count || 0) >= limit) return res.status(409).json({ error: `This ${pkg.duration_days}-day Mining Machine package can only be bought ${limit} time${limit === 1 ? '' : 's'}.` });
 
-  const amount = money(pkg.investment_amount);
-  const purchasedAt = new Date();
-  const endsAt = new Date(purchasedAt.getTime() + Number(pkg.duration_days) * 86400000);
-  const nextPayoutAt = new Date(purchasedAt.getTime() + 86400000);
-  const { data: wallet } = await supabaseAdmin.from('wallets').select('balance').eq('user_id', userId).single();
-  if (Number(wallet?.balance || 0) < amount) return res.status(400).json({ error: 'Insufficient wallet balance' });
-
-  const { data: machine, error: machineError } = await supabaseAdmin.from('wealth_investments').insert({
-    user_id: userId,
-    package_id,
-    amount,
-    start_date: today(),
-    end_date: endsAt.toISOString().slice(0, 10),
-    purchased_at: purchasedAt.toISOString(),
-    ends_at: endsAt.toISOString(),
-    next_payout_at: nextPayoutAt.toISOString(),
-    total_earned: 0,
-    payout_count: 0,
-    status: 'active'
-  }).select().single();
-  if (machineError) throw machineError;
-
-  const { error: walletError } = await supabaseAdmin.from('wallets').update({
-    balance: Number(wallet.balance) - amount,
-    updated_at: new Date().toISOString()
-  }).eq('user_id', userId);
-  if (walletError) throw walletError;
-  const { error: transactionError } = await supabaseAdmin.from('transactions').insert({
-    user_id: userId,
-    type: 'mining_machine_purchase',
-    amount,
-    status: 'approved',
-    reference: `MINING_PURCHASE_${machine.id}`,
-    description: `Purchased ${pkg.name}`
+  const { data: purchaseData, error: purchaseError } = await supabaseAdmin.rpc('purchase_mining_machine', {
+    p_user_id: userId,
+    p_package_id: package_id
   });
-  if (transactionError) throw transactionError;
-  return res.status(201).json({ ok: true, machine, purchases_remaining: Math.max(0, 2 - (count || 0)) });
+  if (purchaseError) {
+    const message = purchaseError.message || 'Could not purchase Mining Machine';
+    if (message.includes('can only be bought')) return res.status(409).json({ error: message });
+    if (message.includes('Insufficient wallet balance')) return res.status(400).json({ error: message });
+    if (message.includes('not currently available')) return res.status(400).json({ error: message });
+    if (message.includes('not found')) return res.status(404).json({ error: message });
+    throw purchaseError;
+  }
+  const purchase = Array.isArray(purchaseData) ? purchaseData[0] : purchaseData;
+  return res.status(201).json({
+    ok: true,
+    machine: purchase?.machine,
+    purchases_remaining: Number(purchase?.purchases_remaining || 0)
+  });
 }
 
 async function processPayouts(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  const { data, error } = await supabaseAdmin.rpc('process_due_mining_payouts');
+  const { data, error } = await supabaseAdmin.rpc('settle_matured_mining_investments');
   if (error) throw error;
   const result = Array.isArray(data) ? data[0] : data;
-  return res.json({ ok: true, processed_investments: result?.processed_investments || 0, processed_payouts: result?.processed_payouts || 0, processed_at: new Date().toISOString() });
+  return res.json({
+    ok: true,
+    processed_investments: result?.processed_investments || 0,
+    processed_payouts: result?.processed_investments || 0,
+    returned_capital_amount: money(result?.capital_returned_amount || 0),
+    profit_paid_amount: money(result?.profit_paid_amount || 0),
+    processed_at: new Date().toISOString()
+  });
 }
