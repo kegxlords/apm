@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>3M — Mining Machines</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="/assets/css/style.css?v=royal-blue-20261023">
   <meta name="theme-color" content="#0B1210">
   <style>
     .machine-hero { text-align: left; }
@@ -53,9 +53,13 @@
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         if (!data.packages.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-industry"></i>No Mining Machines are available right now.</div>'; return; }
         list.innerHTML = data.packages.map((pkg) => {
-          const disabled = pkg.purchases_remaining <= 0;
+          const limitReached = pkg.purchases_remaining <= 0;
+          const disabled = !pkg.is_available || limitReached;
+          const status = pkg.coming_soon ? 'Coming Soon' : limitReached ? 'Limit reached' : pkg.is_available ? 'Ready to purchase' : 'Unavailable';
+          const badge = pkg.coming_soon ? 'badge-amber' : disabled ? 'badge-gray' : 'badge-mint';
+          const buttonLabel = pkg.coming_soon ? 'Coming Soon' : limitReached ? 'Limit reached' : pkg.is_available ? '<i class="fa-solid fa-cart-shopping"></i> Buy machine' : 'Unavailable';
           const expected = Number(pkg.profit_at_maturity || 0);
-          return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Capital and profit paid only at maturity</div></div><span class="badge ${disabled ? 'badge-gray' : 'badge-gold'}">${disabled ? 'Limit reached' : `${pkg.purchases_remaining} purchase${pkg.purchases_remaining === 1 ? '' : 's'} left`}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Payout at maturity</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b></span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${disabled ? 'Unavailable' : '<i class="fa-solid fa-cart-shopping"></i> Buy machine'}</button></div></article>`;
+          return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Capital and profit paid only at maturity</div></div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Payout at maturity</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b></span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
         }).join('');
         list.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
       } catch (error) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }

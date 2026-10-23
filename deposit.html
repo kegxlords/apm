@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>3M — Deposit</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="/assets/css/style.css?v=royal-blue-20261023">
   <meta name="theme-color" content="#0B1210">
   <style>
     .bank-card { background: linear-gradient(135deg, #0E2B1F, #123B2A); border: 1px solid rgba(0,224,138,.35); border-radius: 24px; padding: 22px; margin-bottom: 20px; }
@@ -28,10 +28,11 @@
 
     <div class="bank-card">
       <h3><i class="fa-solid fa-building-columns"></i> Company Account</h3>
-      <div class="bank-row"><span>Bank Name</span><b id="bank-name">—</b></div>
-      <div class="bank-row"><span>Account Number</span><span><b id="acct-number">—</b><button class="copy-mini" onclick="copyAcct()"><i class="fa-regular fa-copy"></i> Copy</button></span></div>
-      <div class="bank-row"><span>Account Name</span><b id="acct-name">—</b></div>
+      <div class="bank-row"><span>Bank Name</span><b id="bank-name">Loading…</b></div>
+      <div class="bank-row"><span>Account Number</span><span><b id="acct-number">Loading…</b><button class="copy-mini" onclick="copyAcct()" disabled><i class="fa-regular fa-copy"></i> Copy</button></span></div>
+      <div class="bank-row"><span>Account Name</span><b id="acct-name">Loading…</b></div>
     </div>
+    <div id="bank-details-alert" class="card" style="display:none;border-color:rgba(220,38,38,.3);color:var(--danger);font-size:.85rem;"></div>
 
     <div class="section-title"><i class="fa-solid fa-naira-sign"></i> Amount</div>
     <div class="amount-grid">
@@ -87,19 +88,39 @@
       btn.classList.add('active');
     };
     window.copyAcct = () => {
-      navigator.clipboard.writeText(document.getElementById('acct-number').textContent);
+      const accountNumber = document.getElementById('acct-number').textContent.trim();
+      if (!accountNumber || accountNumber === 'Not configured' || accountNumber === '—') return showToast('Bank account number is not available', 'error');
+      navigator.clipboard.writeText(accountNumber);
       showToast('Account number copied!', 'success');
     };
 
-    // Bank details + min deposit from settings
-    const { data: settings } = await supabase.from('site_settings').select('key, value');
-    const s = {}; (settings || []).forEach(r => s[r.key] = r.value);
-    minDeposit = Number(s.min_deposit || 6000);
-    document.getElementById('custom-amount').min = String(minDeposit);
-    document.getElementById('custom-amount').placeholder = `Minimum ₦${minDeposit.toLocaleString()}`;
-    document.getElementById('bank-name').textContent = s.deposit_bank_name || 'Contact support';
-    document.getElementById('acct-number').textContent = s.deposit_account_number || '—';
-    document.getElementById('acct-name').textContent = s.deposit_account_name || '—';
+    // Load admin-configured bank details through the authenticated server API.
+    try {
+      const response = await fetch('/api/finance?action=getDepositDetails', {
+        headers: { Authorization: `Bearer ${await token()}` }
+      });
+      const details = await response.json();
+      if (!response.ok) throw new Error(details.error || `HTTP ${response.status}`);
+
+      minDeposit = Number(details.min_deposit || 6000);
+      document.getElementById('custom-amount').min = String(minDeposit);
+      document.getElementById('custom-amount').placeholder = `Minimum ₦${minDeposit.toLocaleString()}`;
+      document.getElementById('bank-name').textContent = details.bank_name || 'Not configured';
+      document.getElementById('acct-number').textContent = details.account_number || 'Not configured';
+      document.getElementById('acct-name').textContent = details.account_name || 'Not configured';
+      document.querySelector('.copy-mini').disabled = !details.account_number;
+      if (!details.configured) {
+        const alert = document.getElementById('bank-details-alert');
+        alert.textContent = 'Deposit bank details are incomplete. Please contact support while the admin updates them.';
+        alert.style.display = 'block';
+      }
+    } catch (error) {
+      console.error('[DEPOSIT] Bank details load failed:', error);
+      ['bank-name', 'acct-number', 'acct-name'].forEach((id) => document.getElementById(id).textContent = 'Unavailable');
+      const alert = document.getElementById('bank-details-alert');
+      alert.textContent = 'Could not load the deposit account details. Refresh this page or contact support.';
+      alert.style.display = 'block';
+    }
 
     window.submitDeposit = async () => {
       const custom = Number(document.getElementById('custom-amount').value);
