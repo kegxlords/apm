@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MMM — Admin</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <link rel="stylesheet" href="/assets/css/style.css">
+  <link rel="stylesheet" href="/assets/css/style.css?v=royal-blue-20261023">
   <link rel="stylesheet" href="/assets/css/admin.css">
   <meta name="theme-color" content="#0B1210">
 </head>
@@ -121,6 +121,7 @@
           <div class="form-group"><label class="form-label">Investment ₦</label><input type="number" class="input" id="wp-inv"></div>
           <div class="form-group"><label class="form-label">Days</label><input type="number" class="input" id="wp-days"></div>
           <div class="form-group"><label class="form-label">Total payout at maturity ₦</label><input type="number" class="input" id="wp-total"></div>
+          <div class="form-group"><label class="form-label">Status</label><select class="select" id="wp-active"><option value="true">Active — ready to purchase</option><option value="false">Inactive — coming soon</option></select></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="savePackage()"><i class="fa-solid fa-plus"></i> Create Package</button>
       </div>
@@ -249,6 +250,25 @@
     <div class="form-group"><label class="form-label">Title</label><input class="input" id="msg-title"></div>
     <div class="form-group"><label class="form-label">Message</label><textarea class="input" id="msg-body" rows="4"></textarea></div>
     <button class="btn btn-gold btn-block" onclick="sendMsg()"><i class="fa-solid fa-paper-plane"></i> Send</button>
+  </div></div>
+
+  <!-- MACHINE PACKAGE MODAL -->
+  <div class="modal-overlay" id="package-modal"><div class="modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="font-family:'Sora';">Edit Machine Package</h3>
+      <button class="btn btn-ghost btn-sm" onclick="closeModal('package-modal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <input type="hidden" id="wp-edit-id">
+    <div class="grid-form">
+      <div class="form-group"><label class="form-label">Name</label><input class="input" id="wp-edit-name"></div>
+      <div class="form-group"><label class="form-label">Investment ₦</label><input type="number" min="1" class="input" id="wp-edit-investment"></div>
+      <div class="form-group"><label class="form-label">Duration (days)</label><input type="number" min="1" step="1" class="input" id="wp-edit-days"></div>
+      <div class="form-group"><label class="form-label">Total payout at maturity ₦</label><input type="number" min="1" class="input" id="wp-edit-total"></div>
+      <div class="form-group"><label class="form-label">Start date (optional)</label><input type="date" class="input" id="wp-edit-start"></div>
+      <div class="form-group"><label class="form-label">End date (optional)</label><input type="date" class="input" id="wp-edit-end"></div>
+      <div class="form-group"><label class="form-label">Availability</label><select class="select" id="wp-edit-active"><option value="true">Active — ready to purchase</option><option value="false">Inactive — coming soon</option></select></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="savePackageEdit()"><i class="fa-solid fa-save"></i> Save Package</button>
   </div></div>
 
   <script src="/assets/js/notifications.js"></script>
@@ -522,18 +542,28 @@
     async function loadWealth() {
       const [{ packages }, { investments }] = await Promise.all([api('get-wealth-packages'), api('get-investments')]);
       pkgCache = packages;
-      document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => `
+      const today = new Date().toISOString().slice(0, 10);
+      document.getElementById('pkg-table').innerHTML = packages.length ? packages.map(p => {
+        const comingSoon = !p.is_active || (p.start_date && today < p.start_date);
+        const expired = p.end_date && today > p.end_date;
+        const status = comingSoon
+          ? '<span class="badge badge-amber">Coming soon</span>'
+          : expired
+            ? '<span class="badge badge-gray">Expired</span>'
+            : '<span class="badge badge-mint">Ready to purchase</span>';
+        return `
         <tr>
           <td><b>${p.name}</b></td>
           <td class="mint">${money(p.investment_amount)}</td>
           <td class="gold">${money(p.total_return)}</td>
           <td>${p.duration_days}</td>
-          <td>${badge(p.is_active ? 'active' : 'rejected')}</td>
+          <td>${status}</td>
           <td><div class="action-row">
             <button class="btn btn-primary btn-sm" onclick="editPackage('${p.id}')"><i class="fa-solid fa-edit"></i></button>
             <button class="btn btn-danger btn-sm" onclick="delPackage('${p.id}')"><i class="fa-solid fa-trash"></i></button>
           </div></td>
-        </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
+        </tr>`;
+      }).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No packages</td></tr>';
       document.getElementById('inv-table').innerHTML = investments.length ? investments.map(i => `
         <tr>
           <td style="font-size:.82rem;">${i.profiles?.email || '—'}</td>
@@ -549,22 +579,45 @@
           name: document.getElementById('wp-name').value,
           investment_amount: document.getElementById('wp-inv').value,
           duration_days: document.getElementById('wp-days').value,
-          total_return: document.getElementById('wp-total').value
+          total_return: document.getElementById('wp-total').value,
+          is_active: document.getElementById('wp-active').value === 'true'
         })});
         showToast('Package created', 'success');
         ['wp-name','wp-inv','wp-days','wp-total'].forEach(id => document.getElementById(id).value = '');
+        document.getElementById('wp-active').value = 'true';
         loadWealth();
       } catch (e) { showToast(e.message, 'error'); }
     };
     window.editPackage = (id) => {
       const p = pkgCache.find(x => x.id === id);
-      const name = prompt('Package name', p.name); if (name === null) return;
-      const inv = prompt('Investment ₦', p.investment_amount); if (inv === null) return;
-      const days = prompt('Duration (days)', p.duration_days); if (days === null) return;
-      const total = prompt('Total payout at maturity ₦', p.total_return); if (total === null) return;
-      api('save-wealth-package', { method: 'POST', body: JSON.stringify({ id, name, investment_amount: inv, duration_days: days, total_return: total, is_active: p.is_active }) })
-        .then(() => { showToast('Package updated', 'success'); loadWealth(); })
-        .catch(e => showToast(e.message, 'error'));
+      if (!p) return showToast('Package not found. Refresh and try again.', 'error');
+      document.getElementById('wp-edit-id').value = p.id;
+      document.getElementById('wp-edit-name').value = p.name || '';
+      document.getElementById('wp-edit-investment').value = p.investment_amount ?? '';
+      document.getElementById('wp-edit-days').value = p.duration_days ?? '';
+      document.getElementById('wp-edit-total').value = p.total_return ?? '';
+      document.getElementById('wp-edit-start').value = p.start_date ? String(p.start_date).slice(0, 10) : '';
+      document.getElementById('wp-edit-end').value = p.end_date ? String(p.end_date).slice(0, 10) : '';
+      document.getElementById('wp-edit-active').value = p.is_active ? 'true' : 'false';
+      document.getElementById('package-modal').classList.add('active');
+    };
+    window.savePackageEdit = async () => {
+      const id = document.getElementById('wp-edit-id').value;
+      try {
+        await api('save-wealth-package', { method: 'POST', body: JSON.stringify({
+          id,
+          name: document.getElementById('wp-edit-name').value.trim(),
+          investment_amount: document.getElementById('wp-edit-investment').value,
+          duration_days: document.getElementById('wp-edit-days').value,
+          total_return: document.getElementById('wp-edit-total').value,
+          start_date: document.getElementById('wp-edit-start').value || null,
+          end_date: document.getElementById('wp-edit-end').value || null,
+          is_active: document.getElementById('wp-edit-active').value === 'true'
+        })});
+        showToast('Package updated', 'success');
+        closeModal('package-modal');
+        await loadWealth();
+      } catch (e) { showToast(e.message, 'error'); }
     };
     window.delPackage = async (id) => {
       if (!confirm('Delete this package?')) return;
