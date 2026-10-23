@@ -15,6 +15,7 @@ export default async function handler(req, res) {
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
 
     switch (action) {
+      case 'getDepositDetails': return await getDepositDetails(req, res);
       case 'createDeposit': return await createDeposit(req, user, res);
       case 'getWithdrawalEligibility': return await getWithdrawalEligibility(user, res);
       case 'requestWithdrawal': return await requestWithdrawal(req, user, res);
@@ -27,6 +28,27 @@ export default async function handler(req, res) {
     console.error('[APM-FINANCE] Error:', err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+async function getDepositDetails(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  const keys = ['deposit_bank_name', 'deposit_account_number', 'deposit_account_name', 'min_deposit'];
+  const { data, error } = await supabaseAdmin.from('site_settings').select('key, value').in('key', keys);
+  if (error) throw error;
+
+  const settings = Object.fromEntries((data || []).map((row) => [row.key, row.value]));
+  const bankName = String(settings.deposit_bank_name || '').trim();
+  const accountNumber = String(settings.deposit_account_number || '').trim();
+  const accountName = String(settings.deposit_account_name || '').trim();
+  const configuredMinimum = Number(settings.min_deposit);
+  return res.json({
+    ok: true,
+    bank_name: bankName,
+    account_number: accountNumber,
+    account_name: accountName,
+    min_deposit: Number.isFinite(configuredMinimum) && configuredMinimum > 0 ? configuredMinimum : 6000,
+    configured: Boolean(bankName && accountNumber && accountName)
+  });
 }
 
 // ==========================================

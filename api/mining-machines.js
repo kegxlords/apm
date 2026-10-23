@@ -29,22 +29,31 @@ export default async function handler(req, res) {
 
 async function getPackages(userId, res) {
   const [{ data: packages, error: packageError }, { data: purchases, error: purchaseError }] = await Promise.all([
-    supabaseAdmin.from('wealth_packages').select('*').eq('is_active', true).order('investment_amount', { ascending: true }),
+    supabaseAdmin.from('wealth_packages').select('*').order('investment_amount', { ascending: true }),
     supabaseAdmin.from('wealth_investments').select('package_id').eq('user_id', userId)
   ]);
   if (packageError) throw packageError;
   if (purchaseError) throw purchaseError;
   const counts = {};
   (purchases || []).forEach((purchase) => { counts[purchase.package_id] = (counts[purchase.package_id] || 0) + 1; });
+  const currentDate = today();
   return res.json({
     ok: true,
-    packages: (packages || []).filter((pkg) => (!pkg.start_date || today() >= pkg.start_date) && (!pkg.end_date || today() <= pkg.end_date)).map((pkg) => ({
-      ...pkg,
-      purchase_count: counts[pkg.id] || 0,
-      purchase_limit: purchaseLimit(pkg),
-      purchases_remaining: Math.max(0, purchaseLimit(pkg) - (counts[pkg.id] || 0)),
-      profit_at_maturity: money(Math.max(0, Number(pkg.total_return || 0) - Number(pkg.investment_amount || 0)))
-    }))
+    packages: (packages || []).map((pkg) => {
+      const startsLater = Boolean(pkg.start_date && currentDate < pkg.start_date);
+      const expired = Boolean(pkg.end_date && currentDate > pkg.end_date);
+      const comingSoon = !pkg.is_active || startsLater;
+      return {
+        ...pkg,
+        is_available: Boolean(pkg.is_active) && !startsLater && !expired,
+        coming_soon: comingSoon,
+        expired,
+        purchase_count: counts[pkg.id] || 0,
+        purchase_limit: purchaseLimit(pkg),
+        purchases_remaining: Math.max(0, purchaseLimit(pkg) - (counts[pkg.id] || 0)),
+        profit_at_maturity: money(Math.max(0, Number(pkg.total_return || 0) - Number(pkg.investment_amount || 0)))
+      };
+    })
   });
 }
 
