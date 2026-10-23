@@ -28,26 +28,38 @@ export default async function handler(req, res) {
 }
 
 async function getPackages(userId, res) {
-  const [{ data: packages, error: packageError }, { data: purchases, error: purchaseError }] = await Promise.all([
+  const [{ data: packages, error: packageError }, { data: purchases, error: purchaseError }, { data: buyerCounts, error: buyerCountError }] = await Promise.all([
     supabaseAdmin.from('wealth_packages').select('*').order('investment_amount', { ascending: true }),
-    supabaseAdmin.from('wealth_investments').select('package_id').eq('user_id', userId)
+    supabaseAdmin.from('wealth_investments').select('package_id').eq('user_id', userId),
+    supabaseAdmin.rpc('get_mining_package_buyer_counts')
   ]);
   if (packageError) throw packageError;
   if (purchaseError) throw purchaseError;
+  if (buyerCountError) throw buyerCountError;
   const counts = {};
   (purchases || []).forEach((purchase) => { counts[purchase.package_id] = (counts[purchase.package_id] || 0) + 1; });
   const currentDate = today();
+  const currentTime = Date.now();
+  const buyersByPackage = Object.fromEntries((buyerCounts || []).map((row) => [row.package_id, Number(row.buyers_count || 0)]));
   return res.json({
     ok: true,
     packages: (packages || []).map((pkg) => {
-      const startsLater = Boolean(pkg.start_date && currentDate < pkg.start_date);
-      const expired = Boolean(pkg.end_date && currentDate > pkg.end_date);
+      const startsLater = Boolean((pkg.available_from && Date.parse(pkg.available_from) > currentTime)
+        || (!pkg.available_from && pkg.start_date && currentDate < pkg.start_date));
+      const expired = Boolean((pkg.available_until && Date.parse(pkg.available_until) < currentTime)
+        || (!pkg.available_until && pkg.end_date && currentDate > pkg.end_date));
+      const buyersCount = buyersByPackage[pkg.id] || 0;
+      const usersRemaining = pkg.is_limited ? Math.max(0, Number(pkg.max_users || 0) - buyersCount) : null;
+      const soldOut = pkg.is_limited && usersRemaining <= 0;
       const comingSoon = !pkg.is_active || startsLater;
       return {
         ...pkg,
-        is_available: Boolean(pkg.is_active) && !startsLater && !expired,
+        is_available: Boolean(pkg.is_active) && !startsLater && !expired && !soldOut,
         coming_soon: comingSoon,
         expired,
+        sold_out: soldOut,
+        buyers_count: buyersCount,
+        users_remaining: usersRemaining,
         purchase_count: counts[pkg.id] || 0,
         purchase_limit: purchaseLimit(pkg),
         purchases_remaining: Math.max(0, purchaseLimit(pkg) - (counts[pkg.id] || 0)),
@@ -80,9 +92,14 @@ async function buyPackage(req, userId, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   const { package_id } = req.body || {};
   if (!package_id) return res.status(400).json({ error: 'Missing package_id' });
-  const { data: pkg } = await supabaseAdmin.from('wealth_packages').select('*').eq('id', package_id).eq('is_active', true).single();
+  const { data: pkg } = await supabaseAdmin.from('wealth_packages').select('*').eq('id', package_id).single();
   if (!pkg) return res.status(404).json({ error: 'Mining Machine package not found' });
-  if ((pkg.start_date && today() < pkg.start_date) || (pkg.end_date && today() > pkg.end_date)) {
+  if (!pkg.is_active) return res.status(400).json({ error: 'This Mining Machine package is marked Coming Soon' });
+  const now = Date.now();
+  if ((pkg.available_from && Date.parse(pkg.available_from) > now)
+    || (pkg.available_until && Date.parse(pkg.available_until) < now)
+    || (!pkg.available_from && pkg.start_date && today() < pkg.start_date)
+    || (!pkg.available_until && pkg.end_date && today() > pkg.end_date)) {
     return res.status(400).json({ error: 'This Mining Machine is not currently available' });
   }
   const { count, error: countError } = await supabaseAdmin.from('wealth_investments')
@@ -98,6 +115,7 @@ async function buyPackage(req, userId, res) {
   if (purchaseError) {
     const message = purchaseError.message || 'Could not purchase Mining Machine';
     if (message.includes('can only be bought')) return res.status(409).json({ error: message });
+    if (message.includes('limited package is sold out') || message.includes('maximum number of users')) return res.status(409).json({ error: message });
     if (message.includes('Insufficient wallet balance')) return res.status(400).json({ error: message });
     if (message.includes('not currently available')) return res.status(400).json({ error: message });
     if (message.includes('not found')) return res.status(404).json({ error: message });

@@ -257,12 +257,23 @@ async function updateTier(req, res) {
 
 // ============ WEALTH ============
 async function getWealthPackages(res) {
-  const { data } = await supabaseAdmin.from('wealth_packages').select('*').order('investment_amount', { ascending: true });
-  return res.json({ packages: data || [] });
+  const [{ data, error }, { data: buyerCounts, error: countError }] = await Promise.all([
+    supabaseAdmin.from('wealth_packages').select('*').order('investment_amount', { ascending: true }),
+    supabaseAdmin.rpc('get_mining_package_buyer_counts')
+  ]);
+  if (error) return res.status(500).json({ error: error.message });
+  if (countError) return res.status(500).json({ error: countError.message });
+  const counts = Object.fromEntries((buyerCounts || []).map((row) => [row.package_id, Number(row.buyers_count || 0)]));
+  return res.json({ packages: (data || []).map((pkg) => ({
+    ...pkg,
+    buyers_count: counts[pkg.id] || 0,
+    users_remaining: pkg.is_limited ? Math.max(0, Number(pkg.max_users || 0) - (counts[pkg.id] || 0)) : null
+  })) });
 }
 
 async function saveWealthPackage(req, res) {
-  const { id, name, investment_amount, duration_days, total_return, start_date, end_date, is_active } = req.body;
+  const { id, name, investment_amount, duration_days, total_return, start_date, end_date, is_active,
+    is_limited, max_users, available_from, available_until } = req.body;
   const investment = Number(investment_amount);
   const days = Number(duration_days);
   const maturityPayout = Number(total_return);
@@ -272,11 +283,25 @@ async function saveWealthPackage(req, res) {
   if (investment <= 0 || days <= 0 || maturityPayout <= investment) {
     return res.status(400).json({ error: 'Maturity payout must be greater than the positive investment amount and duration' });
   }
+  const limited = is_limited === true || is_limited === 'true';
+  const maxUsers = max_users === '' || max_users === null || max_users === undefined ? null : Number(max_users);
+  if (limited && (!Number.isInteger(maxUsers) || maxUsers <= 0)) {
+    return res.status(400).json({ error: 'Limited packages require a positive whole-number user limit' });
+  }
+  const validTimestamp = (value) => !value || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
+  if (!validTimestamp(available_from) || !validTimestamp(available_until)) {
+    return res.status(400).json({ error: 'Availability dates must be valid date/time values' });
+  }
+  if (available_from && available_until && Date.parse(available_until) <= Date.parse(available_from)) {
+    return res.status(400).json({ error: 'Availability end must be later than its start' });
+  }
   const payload = {
     name, investment_amount: investment,
     daily_return: Number(((maturityPayout - investment) / days).toFixed(2)),
     duration_days: days, total_return: maturityPayout,
     start_date: start_date || null, end_date: end_date || null,
+    is_limited: limited, max_users: limited ? maxUsers : null,
+    available_from: available_from || null, available_until: available_until || null,
     is_active: is_active !== false, updated_at: new Date().toISOString()
   };
   const { error } = id
@@ -319,7 +344,8 @@ async function getSettings(res) {
 async function saveSettings(req, res) {
   const entries = Object.entries(req.body || {});
   for (const [key, value] of entries) {
-    await supabaseAdmin.from('site_settings').upsert({ key, value: String(value) });
+    const { error } = await supabaseAdmin.from('site_settings').upsert({ key, value: String(value) });
+    if (error) return res.status(500).json({ error: `Could not save ${key}: ${error.message}` });
   }
   return res.json({ ok: true });
 }
