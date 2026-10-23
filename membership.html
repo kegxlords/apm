@@ -3,187 +3,72 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>3M — Membership</title>
+  <title>3M — Mining Machines</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
   <style>
-    .tier-hero { text-align: center; background: linear-gradient(135deg, #241A06, #1A2C24); border: 1px solid rgba(245,197,24,.35); border-radius: 24px; padding: 26px; margin-bottom: 20px; }
-    .tier-hero .label { font-size: .78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .tier-hero .big { font-family: 'Sora'; font-size: 3rem; font-weight: 800; color: var(--gold); text-shadow: 0 0 30px rgba(245,197,24,.4); margin: 6px 0; }
-    .expiry-chip { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 7px 14px; border-radius: 999px; font-size: .78rem; font-weight: 700; }
-    .expiry-chip.ok { background: var(--primary-dim); color: var(--primary); border: 1px solid rgba(0,224,138,.3); }
-    .expiry-chip.life { background: var(--gold-dim); color: var(--gold); border: 1px solid rgba(245,197,24,.3); }
-    .tier-row { display: flex; align-items: center; gap: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; margin-bottom: 12px; }
-    .tier-row.current { border-color: rgba(245,197,24,.5); box-shadow: 0 0 24px rgba(245,197,24,.12); }
-    .tier-row.inactive { opacity: .55; }
-    .tier-badge-lg { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-family: 'Sora'; font-weight: 800; font-size: 1rem; background: var(--gold-dim); color: var(--gold); flex-shrink: 0; }
-    .tier-row.inactive .tier-badge-lg { background: rgba(143,168,160,.1); color: var(--muted); }
-    .tier-info { flex: 1; min-width: 0; }
-    .tier-name { font-weight: 800; font-size: .95rem; }
-    .tier-meta { font-size: .74rem; color: var(--muted); margin-top: 3px; }
-    .perk-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .perk { padding: 4px 9px; border-radius: 8px; font-size: .66rem; font-weight: 700; background: rgba(0,0,0,.3); color: var(--muted); border: 1px solid var(--border); }
-    .perk.gold { color: var(--gold); border-color: rgba(245,197,24,.25); }
-    .perk.mint { color: var(--primary); border-color: rgba(0,224,138,.25); }
-    .tier-cost { font-family: 'Sora'; font-weight: 800; color: var(--primary); font-size: .95rem; }
+    .machine-hero { text-align: left; }
+    .machine-hero h1 { font-size: 1.7rem; margin: 6px 0; }
+    .machine-hero p { max-width: 560px; color: var(--muted); font-size: .84rem; line-height: 1.5; }
+    .package-card { padding: 20px; margin-bottom: 14px; overflow: hidden; }
+    .package-card::before { content: ''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg,var(--gold),var(--primary)); }
+    .package-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    .package-name { font-family:var(--font-display); font-weight:800; font-size:1.05rem; }
+    .package-sub { margin-top:4px; color:var(--muted); font-size:.73rem; }
+    .package-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0 15px; }
+    .package-cell { padding:10px 7px; border-radius:12px; background:rgba(255,255,255,.55); border:1px solid rgba(16,185,129,.14); text-align:center; }
+    .package-cell b { display:block; color:var(--primary-2); font-family:var(--font-display); font-size:.88rem; }
+    .package-cell.gold b { color:var(--gold); }
+    .package-cell span { display:block; margin-top:4px; color:var(--muted); font-size:.62rem; font-weight:700; text-transform:uppercase; }
+    .package-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .package-limit { color:var(--muted); font-size:.73rem; }
   </style>
 </head>
 <body>
   <div id="header-container"></div>
-  <div class="page">
-    <h1 class="page-title">Membership</h1>
-    <p class="page-sub">Higher tier = more tasks per day & bigger pay per repair.</p>
-
-    <div class="tier-hero">
-      <div class="label">Current Tier</div>
-      <div class="big" id="current-tier">A0</div>
-      <div class="muted" style="font-size:.85rem;" id="current-perks">Free member — basic machines unlocked</div>
-      <div id="current-expiry"></div>
-    </div>
-
-    <div class="section-title"><i class="fa-solid fa-crown"></i> Tier Ladder</div>
-    <div id="tier-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tiers...</div></div>
-  </div>
+  <main class="page">
+    <section class="hero-card machine-hero">
+      <span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / EQUIPMENT MARKET</span>
+      <h1>Mining Machines</h1>
+      <p>Rent a machine with your wallet balance. It starts generating automatic daily income after 24 hours. Each package can be purchased a maximum of three times.</p>
+      <a href="/tasks.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-briefcase"></i> View Rented Machines</a>
+    </section>
+    <div class="section-title"><i class="fa-solid fa-industry"></i> Available packages</div>
+    <div id="package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading Mining Machines...</div></div>
+  </main>
   <div id="footer-container"></div>
-
   <script src="/assets/js/notifications.js"></script>
   <script type="module" src="/assets/js/components.js"></script>
   <script type="module">
     import { requireAuth, supabase } from '/assets/js/auth-guard.js';
-    const user = await requireAuth();
+    await requireAuth();
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
-
-    const ORDER = ['A0','A1','A2','A3','A4','A5','A6','A7'];
-    const rank = t => ORDER.indexOf(t);
-    let myTier = 'A0';
-
-    function expiryText(expiresAt) {
-      if (!expiresAt) return null;
-      const ms = new Date(expiresAt) - Date.now();
-      if (ms <= 0) return 'Expired — renew now';
-      const days = Math.ceil(ms / 86400000);
-      return `Expires in ${days} day${days === 1 ? '' : 's'} (${new Date(expiresAt).toLocaleDateString()})`;
-    }
-
+    const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
+    const list = document.getElementById('package-list');
     async function load() {
-      const list = document.getElementById('tier-list');
-      list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tiers...</div>';
       try {
-        const [profileR, tiersR, tasksR] = await Promise.all([
-          supabase.from('profiles').select('tier, tier_expires_at').eq('id', user.id).single(),
-          supabase.from('apm_tiers').select('*').order('sort_order', { ascending: true }),
-          supabase.from('tasks').select('reward_amount, min_tier').eq('is_active', true)
-        ]);
-
-        myTier = profileR.data?.tier || 'A0';
-        const myExpiry = profileR.data?.tier_expires_at;
-        document.getElementById('current-tier').textContent = myTier;
-
-        const tierStats = (tier) => {
-          const unlocked = (tasksR.data || []).filter(t => rank(t.min_tier) <= rank(tier));
-          const dailyTotal = unlocked.reduce((s, t) => s + Number(t.reward_amount), 0);
-          return { count: unlocked.length, dailyTotal };
-        };
-
-        const myStats = tierStats(myTier);
-        document.getElementById('current-perks').textContent =
-          `${myStats.count} machines unlocked • up to ₦${myStats.dailyTotal.toLocaleString()}/day`;
-
-        const expTxt = expiryText(myExpiry);
-        document.getElementById('current-expiry').innerHTML = myTier === 'A0'
-          ? '<span class="expiry-chip life"><i class="fa-solid fa-seedling"></i> Free plan — upgrade to earn more</span>'
-          : (expTxt
-              ? `<span class="expiry-chip ok"><i class="fa-regular fa-clock"></i> ${expTxt}</span>`
-              : '<span class="expiry-chip life"><i class="fa-solid fa-infinity"></i> Lifetime member</span>');
-
-        const tiers = tiersR.data || [];
-        if (!tiers.length) {
-          list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-crown"></i>No tiers available</div>';
-          return;
-        }
-
-        list.innerHTML = tiers.map(t => {
-          const stats = tierStats(t.tier);
-          const myRank = rank(myTier), tRank = rank(t.tier);
-          const expiry = Number(t.expiry_days || 0);
-          const limit = Number(t.daily_task_limit || 0);
-          const income = Number(t.task_bonus || 0);
-          const inactive = t.is_active === false;
-
-          const potential = income > 0
-            ? (limit > 0 ? limit : stats.count) * income
-            : stats.dailyTotal;
-
-          let action;
-          if (tRank === myRank) {
-            action = '<span class="badge badge-gold">Current</span>';
-            if (inactive) action += ' <span class="badge badge-red">Inactive</span>';
-            else if (expiry > 0) action += `<div style="margin-top:6px;"><button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Renew</button></div>`;
-          }
-          else if (inactive) action = '<span class="badge badge-red">Inactive</span>';
-          else if (tRank < myRank) action = '<span class="badge badge-gray">Passed</span>';
-          else action = `<button class="btn btn-gold btn-sm" onclick="upgrade('${t.tier}', this)">Upgrade</button>`;
-
-          return `
-            <div class="tier-row ${tRank === myRank ? 'current' : ''} ${inactive ? 'inactive' : ''}">
-              <div class="tier-badge-lg">${t.tier}</div>
-              <div class="tier-info">
-                <div class="tier-name">${t.description || t.tier + ' Member'}</div>
-                <div class="tier-meta">${limit > 0 ? limit : stats.count} repairs/day • up to ₦${potential.toLocaleString()}/day</div>
-                <div class="perk-chips">
-                  <span class="perk gold"><i class="fa-regular fa-clock"></i> ${expiry > 0 ? expiry + ' days' : 'Lifetime'}</span>
-                  <span class="perk mint"><i class="fa-solid fa-hand-pointer"></i> ${limit > 0 ? limit + ' repairs/day' : 'Unlimited tasks'}</span>
-                  <span class="perk gold"><i class="fa-solid fa-coins"></i> ${income > 0 ? '₦' + income.toLocaleString() + '/task' : 'Machine rewards'}</span>
-                </div>
-              </div>
-              <div style="text-align:right;">
-                <div class="tier-cost">${Number(t.upgrade_cost) > 0 ? '₦' + Number(t.upgrade_cost).toLocaleString() : 'Free'}</div>
-                <div style="margin-top:6px;">${action}</div>
-              </div>
-            </div>`;
-        }).join('');
-      } catch (err) {
-        console.error('[MEMBERSHIP] Load failed:', err);
-        list.innerHTML = `
-          <div class="empty-state">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            ${err.message}
-            <br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Retry</button>
-          </div>`;
-      }
-    }
-
-    window.upgrade = async (tier, btn) => {
-      const isRenewal = tier === myTier;
-      const label = isRenewal ? `Renew ${tier}` : `Upgrade to ${tier}`;
-      if (!confirm(`${label}? The cost will be deducted from your wallet.`)) return;
-      const original = btn.innerHTML;
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-      try {
-        const res = await fetch('/api/finance?action=upgradeTier', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-          body: JSON.stringify({ tier })
-        });
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); }
-        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
+        const res = await fetch('/api/mining-machines?action=getPackages', { headers: { Authorization: `Bearer ${await token()}` } });
+        const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-        showToast(data.renewed ? `${tier} renewed! ⏳` : `Welcome to ${tier}! New perks unlocked 👑`, 'gold');
-        window.APMShell?.refresh();
-        setTimeout(() => location.reload(), 1200);
-      } catch (err) {
-        console.error('[MEMBERSHIP] Upgrade failed:', err);
-        showToast(err.message, 'error');
-        btn.disabled = false;
-        btn.innerHTML = original;
-      }
-    };
-
+        if (!data.packages.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-industry"></i>No Mining Machines are available right now.</div>'; return; }
+        list.innerHTML = data.packages.map((pkg) => {
+          const disabled = pkg.purchases_remaining <= 0;
+          const expected = Number(pkg.daily_return) * Number(pkg.duration_days);
+          return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Automatic income • first payout after 24 hours</div></div><span class="badge ${disabled ? 'badge-gray' : 'badge-gold'}">${disabled ? 'Limit reached' : `${pkg.purchases_remaining} purchase${pkg.purchases_remaining === 1 ? '' : 's'} left`}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Purchase</span></div><div class="package-cell gold"><b>${money(pkg.daily_return)}</b><span>Daily income</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Potential income: <b class="mint">${money(expected)}</b></span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${disabled ? 'Unavailable' : '<i class="fa-solid fa-cart-shopping"></i> Buy machine'}</button></div></article>`;
+        }).join('');
+        list.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
+      } catch (error) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }
+    }
+    async function buy(button) {
+      if (!confirm('Buy this Mining Machine? The purchase amount will be deducted from your wallet.')) return;
+      const original = button.innerHTML; button.disabled = true; button.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
+      try {
+        const res = await fetch('/api/mining-machines?action=buyPackage', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` }, body: JSON.stringify({ package_id: button.dataset.id }) });
+        const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        showToast('Mining Machine rented. Automatic income starts after 24 hours.', 'success'); window.APMShell?.refresh(); load();
+      } catch (error) { showToast(error.message, 'error'); button.disabled = false; button.innerHTML = original; }
+    }
     load();
   </script>
 </body>
