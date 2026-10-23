@@ -114,18 +114,18 @@
     <!-- WEALTH -->
     <section id="wealth" class="section">
       <h2 class="section-title"><i class="fa-solid fa-gem"></i>Wealth Packages</h2>
+      <div class="notice mint"><i class="fa-solid fa-circle-info"></i>Total payout includes the original capital and profit; it is credited only when the package matures.</div>
       <div class="card">
         <div class="grid-form">
           <div class="form-group"><label class="form-label">Name</label><input class="input" id="wp-name"></div>
           <div class="form-group"><label class="form-label">Investment ₦</label><input type="number" class="input" id="wp-inv"></div>
-          <div class="form-group"><label class="form-label">Daily ₦</label><input type="number" class="input" id="wp-daily"></div>
           <div class="form-group"><label class="form-label">Days</label><input type="number" class="input" id="wp-days"></div>
-          <div class="form-group"><label class="form-label">Total ₦</label><input type="number" class="input" id="wp-total"></div>
+          <div class="form-group"><label class="form-label">Total payout at maturity ₦</label><input type="number" class="input" id="wp-total"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="savePackage()"><i class="fa-solid fa-plus"></i> Create Package</button>
       </div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Name</th><th>Invest</th><th>Daily</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Invest</th><th>Payout at Maturity</th><th>Days</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody id="pkg-table"></tbody>
       </table></div>
       <h2 class="section-title" style="margin-top:24px;"><i class="fa-solid fa-briefcase"></i>Active Investments</h2>
@@ -526,7 +526,7 @@
         <tr>
           <td><b>${p.name}</b></td>
           <td class="mint">${money(p.investment_amount)}</td>
-          <td class="gold">${money(p.daily_return)}</td>
+          <td class="gold">${money(p.total_return)}</td>
           <td>${p.duration_days}</td>
           <td>${badge(p.is_active ? 'active' : 'rejected')}</td>
           <td><div class="action-row">
@@ -548,12 +548,11 @@
         await api('save-wealth-package', { method: 'POST', body: JSON.stringify({
           name: document.getElementById('wp-name').value,
           investment_amount: document.getElementById('wp-inv').value,
-          daily_return: document.getElementById('wp-daily').value,
           duration_days: document.getElementById('wp-days').value,
           total_return: document.getElementById('wp-total').value
         })});
         showToast('Package created', 'success');
-        ['wp-name','wp-inv','wp-daily','wp-days','wp-total'].forEach(id => document.getElementById(id).value = '');
+        ['wp-name','wp-inv','wp-days','wp-total'].forEach(id => document.getElementById(id).value = '');
         loadWealth();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -561,10 +560,9 @@
       const p = pkgCache.find(x => x.id === id);
       const name = prompt('Package name', p.name); if (name === null) return;
       const inv = prompt('Investment ₦', p.investment_amount); if (inv === null) return;
-      const daily = prompt('Daily return ₦', p.daily_return); if (daily === null) return;
       const days = prompt('Duration (days)', p.duration_days); if (days === null) return;
-      const total = prompt('Total return ₦', p.total_return); if (total === null) return;
-      api('save-wealth-package', { method: 'POST', body: JSON.stringify({ id, name, investment_amount: inv, daily_return: daily, duration_days: days, total_return: total, is_active: p.is_active }) })
+      const total = prompt('Total payout at maturity ₦', p.total_return); if (total === null) return;
+      api('save-wealth-package', { method: 'POST', body: JSON.stringify({ id, name, investment_amount: inv, duration_days: days, total_return: total, is_active: p.is_active }) })
         .then(() => { showToast('Package updated', 'success'); loadWealth(); })
         .catch(e => showToast(e.message, 'error'));
     };
@@ -579,7 +577,7 @@
       const { settings: s } = await api('get-settings');
       document.getElementById('set-ref-pct').value = s.referral_commission_percentage ?? '10';
       document.getElementById('set-wd-fee').value = s.withdrawal_fee_percentage ?? '0';
-      document.getElementById('set-min-dep').value = s.min_deposit ?? '1000';
+      document.getElementById('set-min-dep').value = s.min_deposit ?? '6000';
       document.getElementById('set-min-wd').value = s.min_withdrawal ?? '1000';
       document.getElementById('set-bank').value = s.deposit_bank_name || '';
       document.getElementById('set-acct').value = s.deposit_account_number || '';
