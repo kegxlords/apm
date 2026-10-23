@@ -30,6 +30,7 @@ function navHTML() {
         ${item('/wealth.html', 'fa-solid fa-chart-line', 'Growth Plans')}
         ${item('/membership.html', 'fa-solid fa-layer-group', 'Access Tier')}
         ${item('/team.html', 'fa-solid fa-users', 'Crew Network')}
+        ${item('/salary.html', 'fa-solid fa-money-bill-trend-up', 'Salary')}
       </nav>
       <div class="sidebar-footer"><i class="fa-solid fa-shield-halved"></i><span>SECURE WORKSPACE<br><b>3M NORTHSTAR</b></span></div>
     </aside>
@@ -37,6 +38,7 @@ function navHTML() {
       ${item('/dashboard.html', 'fa-solid fa-grid-2', 'Home')}
       ${item('/tasks.html', 'fa-solid fa-screwdriver-wrench', 'Machines', 'mobile-primary')}
       ${item('/wallet.html', 'fa-solid fa-wallet', 'Wallet')}
+      ${item('/salary.html', 'fa-solid fa-money-bill-trend-up', 'Salary')}
       ${item('/profile.html', 'fa-solid fa-user', 'Profile')}
     </nav>`;
 }
