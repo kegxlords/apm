@@ -54,12 +54,16 @@
       referral_commission: ['fa-solid fa-users',        'var(--gold-dim)', 'var(--gold)'],
       wealth_return:       ['fa-solid fa-gem',          'var(--gold-dim)', 'var(--gold)'],
       wealth_invest:       ['fa-solid fa-gem',          'rgba(255,176,32,.15)', 'var(--warning)'],
+      daily_login_reward:  ['fa-solid fa-gift',         'var(--primary-dim)', 'var(--primary)'],
+      mining_machine_capital_return: ['fa-solid fa-rotate-left', 'var(--primary-dim)', 'var(--primary)'],
+      mining_machine_profit: ['fa-solid fa-chart-line', 'var(--gold-dim)', 'var(--gold)'],
+      mining_machine_purchase: ['fa-solid fa-industry', 'rgba(255,176,32,.15)', 'var(--warning)'],
       membership_upgrade:  ['fa-solid fa-crown',        'var(--gold-dim)', 'var(--gold)'],
       admin_credit:        ['fa-solid fa-user-shield',  'var(--primary-dim)', 'var(--primary)'],
       admin_debit:         ['fa-solid fa-user-shield',  'rgba(255,90,90,.15)', 'var(--danger)']
     };
-    const IN_TYPES = ['task_claim', 'deposit', 'referral_commission', 'wealth_return', 'admin_credit'];
-    const OUT_TYPES = ['withdrawal', 'membership_upgrade', 'wealth_invest', 'admin_debit'];
+    const IN_TYPES = ['task_claim', 'deposit', 'referral_commission', 'wealth_return', 'daily_login_reward', 'mining_machine_capital_return', 'mining_machine_profit', 'admin_credit'];
+    const OUT_TYPES = ['withdrawal', 'membership_upgrade', 'wealth_invest', 'mining_machine_purchase', 'admin_debit'];
 
     const [walletR, txnR] = await Promise.all([
       supabase.from('wallets').select('balance').eq('user_id', user.id).single(),

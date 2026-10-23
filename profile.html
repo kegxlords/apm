@@ -66,7 +66,7 @@
       supabase.from('task_claims').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('referred_by', user.id),
       supabase.from('messages').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('is_read', false),
-      supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').in('type', ['task_claim','referral_commission','wealth_return']),
+      supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').in('type', ['task_claim','referral_commission','wealth_return','daily_login_reward','mining_machine_profit']),
       supabase.from('site_settings').select('key, value')
     ]);
 

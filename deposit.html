@@ -42,7 +42,7 @@
     </div>
     <div class="form-group">
       <label class="form-label">Or enter custom amount (₦)</label>
-      <input type="number" id="custom-amount" class="input" placeholder="Minimum ₦1,000" min="1000">
+      <input type="number" id="custom-amount" class="input" placeholder="Minimum ₦6,000" min="6000">
     </div>
 
     <div class="form-group">
@@ -79,6 +79,7 @@
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
 
     let selected = null;
+    let minDeposit = 6000;
     window.pickAmount = (amt, btn) => {
       selected = amt;
       document.getElementById('custom-amount').value = '';
@@ -93,6 +94,9 @@
     // Bank details + min deposit from settings
     const { data: settings } = await supabase.from('site_settings').select('key, value');
     const s = {}; (settings || []).forEach(r => s[r.key] = r.value);
+    minDeposit = Number(s.min_deposit || 6000);
+    document.getElementById('custom-amount').min = String(minDeposit);
+    document.getElementById('custom-amount').placeholder = `Minimum ₦${minDeposit.toLocaleString()}`;
     document.getElementById('bank-name').textContent = s.deposit_bank_name || 'Contact support';
     document.getElementById('acct-number').textContent = s.deposit_account_number || '—';
     document.getElementById('acct-name').textContent = s.deposit_account_name || '—';
@@ -101,6 +105,7 @@
       const custom = Number(document.getElementById('custom-amount').value);
       const amount = custom || selected;
       if (!amount) return showToast('Select or enter an amount', 'error');
+      if (amount < minDeposit) return showToast(`Minimum deposit is ₦${minDeposit.toLocaleString()}`, 'error');
       const sender = document.getElementById('sender-name').value.trim();
       if (!sender) return showToast('Enter the sender name', 'error');
 

@@ -102,12 +102,22 @@
       wealth_return:       { icon: 'fa-solid fa-gem',          bg: 'var(--gold-dim)', color: 'var(--gold)' },
       wealth_invest:       { icon: 'fa-solid fa-gem',          bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
       daily_login_reward: { icon: 'fa-solid fa-gift',          bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      mining_machine_purchase: { icon: 'fa-solid fa-industry', bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
       mining_machine_capital_return: { icon: 'fa-solid fa-rotate-left', bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      mining_machine_profit: { icon: 'fa-solid fa-chart-line', bg: 'var(--gold-dim)', color: 'var(--gold)' },
       membership_upgrade:  { icon: 'fa-solid fa-crown',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
       salary_bonus:        { icon: 'fa-solid fa-money-bill-trend-up', bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_credit:        { icon: 'fa-solid fa-user-shield',  bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_debit:         { icon: 'fa-solid fa-user-shield',  bg: 'rgba(255,90,90,.15)', color: 'var(--danger)' }
     };
+    const EARN_TYPES = ['task_claim', 'referral_commission', 'wealth_return', 'salary_bonus', 'daily_login_reward', 'mining_machine_profit'];
+
+    function nigeriaDayStartISO() {
+      const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit'
+      }).formatToParts(new Date()).map(({ type, value }) => [type, value]));
+      return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00+01:00`).toISOString();
+    }
 
     function countUp(el, target) {
       const dur = 700, t0 = performance.now();
@@ -121,15 +131,13 @@
     }
 
     async function load() {
-      const today = new Date().toISOString().slice(0, 10);
-
       const [walletR, profileR, teamR, claimsR, txnsR, todayR] = await Promise.all([
         supabase.from('wallets').select('balance').eq('user_id', user.id).single(),
         supabase.from('profiles').select('tier, current_streak').eq('id', user.id).single(),
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('referred_by', user.id),
         supabase.from('task_claims').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
-        supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').neq('type', 'mining_machine_capital_return').gte('created_at', `${today}T00:00:00.000Z`)
+        supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').in('type', EARN_TYPES).gte('created_at', nigeriaDayStartISO())
       ]);
 
       countUp(document.getElementById('balance'), Number(walletR.data?.balance || 0));
@@ -139,9 +147,8 @@
       const todayEarned = (todayR.data || []).reduce((s, r) => s + Number(r.amount), 0);
       document.getElementById('stat-today').textContent = `₦${todayEarned.toLocaleString()}`;
 
-      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return', 'salary_bonus', 'daily_login_reward'];
       const { data: allEarn } = await supabase.from('transactions').select('amount')
-        .eq('user_id', user.id).eq('status', 'approved').in('type', earnTypes);
+        .eq('user_id', user.id).eq('status', 'approved').in('type', EARN_TYPES);
       document.getElementById('stat-total').textContent = `₦${(allEarn || []).reduce((s, r) => s + Number(r.amount), 0).toLocaleString()}`;
 
       document.getElementById('stat-team').textContent = teamR.count || 0;
@@ -155,7 +162,7 @@
         card.innerHTML = txns.map(t => {
           const meta = TYPE_META[t.type] || TYPE_META.task_claim;
           const pending = t.status === 'pending';
-          const negative = ['withdrawal', 'admin_debit', 'membership_upgrade', 'wealth_invest'].includes(t.type);
+          const negative = ['withdrawal', 'admin_debit', 'membership_upgrade', 'wealth_invest', 'mining_machine_purchase'].includes(t.type);
           const cls = pending ? 'wait' : (negative ? 'minus' : 'plus');
           const sign = pending ? '' : (negative ? '-' : '+');
           return `
