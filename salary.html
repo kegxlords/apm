@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>3M — Salary</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="/assets/css/style.css">
+  <meta name="theme-color" content="#0B1210">
+  <style>
+    .salary-hero { text-align: left; }
+    .salary-hero .hero-amount { margin: 6px 0 2px; }
+    .salary-hero-line { display: flex; justify-content: space-between; gap: 12px; align-items: end; }
+    .salary-hero-line .muted { font-size: .78rem; }
+    .salary-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+    .salary-summary-item { padding: 12px; border-radius: 14px; background: rgba(255,255,255,.52); border: 1px solid rgba(16,185,129,.16); }
+    .salary-summary-item b { display: block; font-family: var(--font-display); font-size: 1rem; }
+    .salary-summary-item span { display: block; margin-top: 3px; color: var(--muted); font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+    .salary-note { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; margin-bottom: 20px; border-radius: 16px; background: rgba(217,119,6,.08); border: 1px solid rgba(217,119,6,.2); color: var(--muted); font-size: .78rem; line-height: 1.5; }
+    .salary-note i { color: var(--gold); margin-top: 2px; }
+    .salary-level { padding: 18px; margin-bottom: 12px; overflow: hidden; }
+    .salary-level::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--gold); }
+    .salary-level.claimable::before { background: var(--primary); }
+    .salary-level.claimed { opacity: .72; }
+    .salary-level-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .salary-level-title { font-family: var(--font-display); font-size: 1rem; font-weight: 800; }
+    .salary-level-copy { margin-top: 4px; color: var(--muted); font-size: .75rem; }
+    .salary-reward { color: var(--primary-2); font-family: var(--font-display); font-size: 1.05rem; font-weight: 800; white-space: nowrap; }
+    .salary-progress { height: 9px; margin: 16px 0 8px; overflow: hidden; border-radius: 999px; background: rgba(85,116,101,.14); }
+    .salary-progress > span { display: block; height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #6EE7B7, #10B981, #047857); transition: width .6s var(--ease); }
+    .salary-level-foot { display: flex; justify-content: space-between; gap: 10px; align-items: center; color: var(--muted); font-size: .72rem; }
+    .salary-claim { min-width: 94px; }
+    .salary-loading { padding: 36px 12px; text-align: center; color: var(--muted); }
+    @media (max-width: 380px) { .salary-level-top { display: block; } .salary-reward { display: block; margin-top: 8px; } }
+  </style>
+</head>
+<body>
+  <div id="header-container"></div>
+  <main class="page">
+    <div class="console-heading" style="margin-bottom: 18px;">
+      <div><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / REWARD LADDER</span><h1 class="page-title">Salary</h1><p class="page-sub" style="margin-bottom:0;">Build the team. Unlock the next level.</p></div>
+    </div>
+    <section class="hero-card salary-hero">
+      <div class="hero-label">Team Total Deposits</div>
+      <div class="salary-hero-line"><div class="hero-amount" id="team-total">₦0</div><span class="badge badge-mint"><i class="fa-solid fa-users"></i> <span id="team-count">0</span> members</span></div>
+      <div class="salary-summary">
+        <div class="salary-summary-item"><b id="claimed-count">0</b><span>Levels claimed</span></div>
+        <div class="salary-summary-item"><b id="next-target">—</b><span>Next target</span></div>
+      </div>
+    </section>
+    <div class="salary-note"><i class="fa-solid fa-shield-halved"></i><span>Rewards are based on completed deposits from your direct team. Each level is permanent: once claimed, it cannot be claimed again and your progress never resets.</span></div>
+    <div class="section-title"><i class="fa-solid fa-ranking-star"></i> Salary standards</div>
+    <div id="salary-list"><div class="salary-loading"><i class="fa-solid fa-circle-notch spinner"></i> Loading salary standards...</div></div>
+  </main>
+  <div id="footer-container"></div>
+  <script src="/assets/js/notifications.js"></script>
+  <script type="module" src="/assets/js/components.js"></script>
+  <script type="module">
+    import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+    await requireAuth();
+    const token = async () => (await supabase.auth.getSession()).data.session.access_token;
+    const naira = (amount) => `₦${Number(amount || 0).toLocaleString('en-NG')}`;
+    const list = document.getElementById('salary-list');
+    let state;
+    async function request(action, options = {}) {
+      const response = await fetch(`/api/salary?action=${action}`, { ...options, headers: { ...(options.headers || {}), Authorization: `Bearer ${await token()}` } });
+      const text = await response.text();
+      let data;
+      try { data = JSON.parse(text); } catch { throw new Error(`Server returned an invalid response (HTTP ${response.status}).`); }
+      if (!response.ok) throw new Error(data.error || `Request failed (HTTP ${response.status})`);
+      return data;
+    }
+    function render() {
+      const total = Number(state.total_team_deposits || 0);
+      document.getElementById('team-total').textContent = naira(total);
+      document.getElementById('team-count').textContent = state.team_count || 0;
+      document.getElementById('claimed-count').textContent = state.claimed_count || 0;
+      const next = state.levels.find((level) => !level.claimed);
+      document.getElementById('next-target').textContent = next ? naira(next.deposit_threshold) : 'Complete';
+      if (!state.levels.length) { list.innerHTML = '<div class="card empty-state"><i class="fa-solid fa-inbox"></i>No salary standards are active yet.</div>'; return; }
+      list.innerHTML = state.levels.map((level) => {
+        const remaining = Math.max(0, level.deposit_threshold - total);
+        const status = level.claimed ? '<span class="badge badge-mint"><i class="fa-solid fa-check"></i> Claimed</span>' : level.eligible ? `<button class="btn btn-primary btn-sm salary-claim" data-level="${level.id}">Claim</button>` : '<span class="badge badge-gray"><i class="fa-solid fa-lock"></i> Locked</span>';
+        const helper = level.claimed ? `Claimed ${new Date(level.claimed_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}` : level.eligible ? 'Milestone reached — claim your bonus' : `Need ${naira(remaining)} more to claim`;
+        return `<article class="card salary-level ${level.eligible ? 'claimable' : ''} ${level.claimed ? 'claimed' : ''}"><div class="salary-level-top"><div><div class="salary-level-title">Reach ${naira(level.deposit_threshold)}</div><div class="salary-level-copy">${level.label} • one-time team deposit bonus</div></div><div class="salary-reward">+${naira(level.reward_amount)}</div></div><div class="salary-progress" aria-label="${Math.round(level.progress * 100)} percent complete"><span style="width:${Math.round(level.progress * 100)}%"></span></div><div class="salary-level-foot"><span>${helper}</span><span>${status}</span></div></article>`;
+      }).join('');
+      list.querySelectorAll('.salary-claim').forEach((button) => button.addEventListener('click', () => claim(button)));
+    }
+    async function claim(button) {
+      button.disabled = true; button.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
+      try {
+        const data = await request('claimSalary', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ level_id: button.dataset.level }) });
+        showToast(`+${naira(data.amount)} salary bonus credited!`, 'success');
+        await load();
+        window.APMShell?.refresh();
+      } catch (error) { showToast(error.message, 'error'); button.disabled = false; button.textContent = 'Claim'; }
+    }
+    async function load() {
+      try { state = await request('getSalary'); render(); }
+      catch (error) { list.innerHTML = `<div class="card empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }
+    }
+    load();
+  </script>
+</body>
+</html>
