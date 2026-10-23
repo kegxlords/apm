@@ -51,8 +51,6 @@
       <div class="stat-card"><div class="stat-value" id="stat-team">0</div><div class="stat-label">Team Members</div></div>
       <div class="stat-card"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Machines Repaired</div></div>
     </div>
-    <div class="card" style="margin-bottom:18px;"><i class="fa-solid fa-gift mint"></i> Daily sign-in reward: <b class="mint">₦200</b>, credited once each day.</div>
-
     <div class="quick-grid">
       <a href="/tasks.html" class="quick-tile"><i class="fa-solid fa-hand-pointer"></i>Machines</a>
       <a id="telegram-tile" href="#" class="quick-tile" target="_blank" rel="noopener noreferrer" hidden><i class="fa-brands fa-telegram"></i>Telegram</a>
@@ -179,27 +177,6 @@
     }
 
     load();
-
-    async function claimDailySignIn() {
-      try {
-        const session = (await supabase.auth.getSession()).data.session;
-        if (!session?.access_token) return;
-        const response = await fetch('/api/tasks?action=claimDailySignIn', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${session.access_token}` }
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
-        if (result.claimed) {
-          showToast(`Daily sign-in reward of ₦${Number(result.amount).toLocaleString()} added.`, 'success');
-          await load();
-          window.APMShell?.refresh();
-        }
-      } catch (error) {
-        console.error('[DASHBOARD] Daily sign-in reward failed:', error);
-      }
-    }
-    claimDailySignIn();
 
     // ===== Telegram welcome popup (once per day) =====
     const todayStr = new Date().toISOString().slice(0, 10);
