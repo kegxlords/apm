@@ -11,28 +11,24 @@
     .machine-hero { text-align: left; }
     .machine-hero h1 { font-size: 1.7rem; margin: 6px 0; }
     .machine-hero p { max-width: 560px; color: var(--muted); font-size: .84rem; line-height: 1.5; }
-    .package-card { min-height: 350px; margin-bottom: 16px; perspective: 1200px; }
-    .package-flip-inner { position:relative; min-height:inherit; height:100%; transform-style:preserve-3d; transition:transform .7s cubic-bezier(.2,.75,.25,1); }
-    .package-card.is-flipped .package-flip-inner { transform:rotateY(180deg); }
-    .package-face { position:absolute; inset:0; display:flex; flex-direction:column; padding:20px; overflow:hidden; border:1px solid var(--border); border-radius:14px; background:linear-gradient(150deg,rgba(255,255,255,.9),rgba(239,244,255,.84)); box-shadow:var(--shadow-md); -webkit-backface-visibility:hidden; backface-visibility:hidden; }
-    .package-face::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg,var(--gold),var(--primary)); }
-    .package-face-back { transform:rotateY(180deg); background:linear-gradient(150deg,rgba(224,234,255,.97),rgba(255,255,255,.9)); }
+    .package-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; padding:6px; margin:0 0 18px; border:1px solid var(--border); border-radius:16px; background:var(--surface); box-shadow:var(--shadow-sm); }
+    .package-tab { min-height:44px; border:0; border-radius:11px; color:var(--muted); background:transparent; font:800 .88rem var(--font-body); cursor:pointer; transition:background .2s ease,color .2s ease,box-shadow .2s ease; }
+    .package-tab.active { color:#fff; background:linear-gradient(135deg,var(--primary),var(--primary-2)); box-shadow:0 5px 16px rgba(65,105,225,.25); }
+    .package-tab:focus-visible { outline:2px solid var(--primary); outline-offset:2px; }
+    .package-panel[hidden] { display:none !important; }
+    .package-card { position:relative; padding:20px; margin-bottom:14px; overflow:hidden; }
+    .package-card::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:linear-gradient(180deg,var(--gold),var(--primary)); }
     .package-top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
     .package-name { font-family:var(--font-display); font-weight:800; font-size:1.05rem; }
     .package-sub { margin-top:4px; color:var(--muted); font-size:.73rem; line-height:1.45; }
     .package-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0 15px; }
-    .package-cell { padding:10px 7px; border-radius:12px; background:rgba(255,255,255,.55); border:1px solid rgba(16,185,129,.14); text-align:center; }
+    .package-cell { padding:10px 7px; border-radius:12px; background:rgba(255,255,255,.55); border:1px solid var(--border); text-align:center; }
     .package-cell b { display:block; color:var(--primary-2); font-family:var(--font-display); font-size:.88rem; }
     .package-cell.gold b { color:var(--gold); }
     .package-cell span { display:block; margin-top:4px; color:var(--muted); font-size:.62rem; font-weight:700; text-transform:uppercase; }
-    .package-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:auto; padding-top:14px; }
+    .package-foot { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:14px; }
     .package-limit { color:var(--muted); font-size:.73rem; }
-    .package-detail { color:var(--muted); font-size:.8rem; line-height:1.55; margin-top:14px; }
-    .package-detail strong { color:var(--text); }
-    .flip-trigger { align-self:flex-start; border:0; padding:7px 0; margin-top:8px; color:var(--primary-2); background:transparent; font:700 .76rem var(--font-body); cursor:pointer; }
-    .flip-trigger:hover { color:var(--primary); }
-    .flip-trigger:focus-visible { outline:2px solid var(--primary); outline-offset:3px; border-radius:4px; }
-    @media (prefers-reduced-motion: reduce) { .package-flip-inner { transition:none; } }
+    .package-schedule { margin-top:8px; color:var(--muted); font-size:.73rem; line-height:1.5; }
   </style>
 </head>
 <body>
@@ -44,10 +40,18 @@
       <p>Your capital and profit are paid together to your wallet when the package expires; neither is paid out before maturity. The 2-, 5-, and 10-day packages can be bought once each; other packages can be bought twice each.</p>
       <a href="/tasks.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-briefcase"></i> View Rented Machines</a>
     </section>
-    <div class="section-title"><i class="fa-solid fa-industry"></i> General Packages</div>
-    <div id="general-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading Mining Machines...</div></div>
-    <div class="section-title"><i class="fa-solid fa-bolt"></i> Limited Packages</div>
-    <div id="limited-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading limited offers...</div></div>
+    <div class="package-tabs" role="tablist" aria-label="Package sections">
+      <button type="button" class="package-tab active" id="general-tab" role="tab" aria-selected="true" aria-controls="general-panel">General</button>
+      <button type="button" class="package-tab" id="limited-tab" role="tab" aria-selected="false" aria-controls="limited-panel" tabindex="-1">Limited</button>
+    </div>
+    <section class="package-panel" id="general-panel" role="tabpanel" aria-labelledby="general-tab">
+      <div class="section-title"><i class="fa-solid fa-industry"></i> General Packages</div>
+      <div id="general-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading Mining Machines...</div></div>
+    </section>
+    <section class="package-panel" id="limited-panel" role="tabpanel" aria-labelledby="limited-tab" hidden>
+      <div class="section-title"><i class="fa-solid fa-bolt"></i> Limited Packages</div>
+      <div id="limited-package-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading limited offers...</div></div>
+    </section>
   </main>
   <div id="footer-container"></div>
   <script src="/assets/js/notifications.js"></script>
@@ -59,6 +63,27 @@
     const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
     const generalList = document.getElementById('general-package-list');
     const limitedList = document.getElementById('limited-package-list');
+    const packageTabs = [...document.querySelectorAll('.package-tab')];
+    function showPackageSection(section) {
+      const limited = section === 'limited';
+      document.getElementById('general-panel').hidden = limited;
+      document.getElementById('limited-panel').hidden = !limited;
+      packageTabs.forEach((tab) => {
+        const selected = tab.id === `${section}-tab`;
+        tab.classList.toggle('active', selected);
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      });
+    }
+    document.getElementById('general-tab').addEventListener('click', () => showPackageSection('general'));
+    document.getElementById('limited-tab').addEventListener('click', () => showPackageSection('limited'));
+    packageTabs.forEach((tab) => tab.addEventListener('keydown', (event) => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const next = tab.id === 'general-tab' ? 'limited' : 'general';
+      showPackageSection(next);
+      document.getElementById(`${next}-tab`).focus();
+    }));
     const formatAvailability = (value) => {
       if (!value) return '';
       const date = new Date(value);
@@ -83,31 +108,8 @@
         const schedule = `${buyerLimit}${timeWindow}`;
         const groupName = limited ? 'Limited package' : 'General package';
         const packagePurchaseCount = !limited ? `${pkg.purchases_remaining} purchase${pkg.purchases_remaining === 1 ? '' : 's'} remaining` : '';
-        return `<article class="package-card" data-package-card="${pkg.id}">
-          <div class="package-flip-inner">
-            <section class="package-face package-face-front" aria-label="${groupName}: ${pkg.name}">
-              <div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">${groupName} • Capital and profit paid at maturity</div></div><span class="badge ${badge}">${status}</span></div>
-              <div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Total payout</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div>
-              <div class="package-foot"><span class="package-limit">Profit: <b class="mint">${money(expected)}</b></span>${packagePurchaseCount ? `<span class="package-limit">${packagePurchaseCount}</span>` : ''}</div>
-              <button class="flip-trigger" type="button" data-flip="${pkg.id}" aria-expanded="false" aria-label="Show details for ${pkg.name}">View package details <i class="fa-solid fa-arrow-right"></i></button>
-            </section>
-            <section class="package-face package-face-back" aria-label="Details for ${groupName}: ${pkg.name}" aria-hidden="true" inert>
-              <div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">Package details</div></div><span class="badge ${badge}">${status}</span></div>
-              <div class="package-detail"><div>Investment: <strong>${money(pkg.investment_amount)}</strong></div><div>Total maturity payout: <strong>${money(pkg.total_return)}</strong></div><div>Profit: <strong>${money(expected)}</strong></div><div>Duration: <strong>${pkg.duration_days} days</strong></div><div>Capital and profit are paid together when the package matures.</div>${schedule ? `<div style="margin-top:8px;">${schedule}</div>` : ''}</div>
-              <div class="package-foot"><button class="flip-trigger" type="button" data-flip="${pkg.id}" aria-expanded="true" aria-label="Back to ${pkg.name} summary"><i class="fa-solid fa-arrow-left"></i> Back</button><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div>
-            </section>
-          </div>
-        </article>`;
+        return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">${groupName} • Capital and profit paid only at maturity</div>${schedule ? `<div class="package-schedule">${schedule}</div>` : ''}</div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Total payout</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b>${packagePurchaseCount ? `<br>${packagePurchaseCount}` : ''}</span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
       }).join('');
-      target.querySelectorAll('button[data-flip]').forEach((button) => button.addEventListener('click', () => {
-        const card = button.closest('[data-package-card]');
-        const flipped = card.classList.toggle('is-flipped');
-        card.querySelectorAll('button[data-flip]').forEach((trigger) => trigger.setAttribute('aria-expanded', String(flipped)));
-        card.querySelector('.package-face-front').setAttribute('aria-hidden', String(flipped));
-        card.querySelector('.package-face-back').setAttribute('aria-hidden', String(!flipped));
-        card.querySelector('.package-face-front').toggleAttribute('inert', flipped);
-        card.querySelector('.package-face-back').toggleAttribute('inert', !flipped);
-      }));
       target.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
     }
     async function load() {
