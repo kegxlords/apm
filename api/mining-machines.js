@@ -3,12 +3,6 @@ import { verifyUser, getProfile } from '../lib/auth.js';
 
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 const today = () => new Date().toISOString().slice(0, 10);
-const cronAuthorized = (req) => {
-  const expected = process.env.MINING_CRON_SECRET;
-  if (!expected) return false;
-  const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
-  return bearer === expected || req.headers['x-cron-secret'] === expected;
-};
 
 export default async function handler(req, res) {
   try {
@@ -123,7 +117,6 @@ async function buyPackage(req, userId, res) {
 
 async function processPayouts(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-  if (!cronAuthorized(req)) return res.status(401).json({ error: 'Invalid cron secret' });
   const { data, error } = await supabaseAdmin.rpc('process_due_mining_payouts');
   if (error) throw error;
   const result = Array.isArray(data) ? data[0] : data;
