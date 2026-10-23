@@ -262,13 +262,20 @@ async function getWealthPackages(res) {
 }
 
 async function saveWealthPackage(req, res) {
-  const { id, name, investment_amount, daily_return, duration_days, total_return, start_date, end_date, is_active } = req.body;
-  if (!name || !investment_amount || !daily_return || !duration_days || !total_return) {
+  const { id, name, investment_amount, duration_days, total_return, start_date, end_date, is_active } = req.body;
+  const investment = Number(investment_amount);
+  const days = Number(duration_days);
+  const maturityPayout = Number(total_return);
+  if (!name || !Number.isFinite(investment) || !Number.isInteger(days) || !Number.isFinite(maturityPayout)) {
     return res.status(400).json({ error: 'All core fields are required' });
   }
+  if (investment <= 0 || days <= 0 || maturityPayout <= investment) {
+    return res.status(400).json({ error: 'Maturity payout must be greater than the positive investment amount and duration' });
+  }
   const payload = {
-    name, investment_amount: Number(investment_amount), daily_return: Number(daily_return),
-    duration_days: Number(duration_days), total_return: Number(total_return),
+    name, investment_amount: investment,
+    daily_return: Number(((maturityPayout - investment) / days).toFixed(2)),
+    duration_days: days, total_return: maturityPayout,
     start_date: start_date || null, end_date: end_date || null,
     is_active: is_active !== false, updated_at: new Date().toISOString()
   };

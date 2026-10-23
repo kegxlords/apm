@@ -15,12 +15,30 @@ export default async function handler(req, res) {
     switch (action) {
       case 'getTasks': return await getTasks(user, res);
       case 'claimTask': return await claimTask(req, user, res);
+      case 'claimDailySignIn': return await claimDailySignIn(req, user, res);
       default: return res.status(400).json({ error: 'Invalid action' });
     }
   } catch (err) {
     console.error('[APM-TASKS] Error:', err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+async function claimDailySignIn(req, user, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const profile = await getProfile(user.id);
+  if (!profile) return res.status(404).json({ error: 'Profile not found' });
+  if (profile.is_frozen) return res.status(403).json({ error: 'Account frozen' });
+
+  const { data, error } = await supabaseAdmin.rpc('claim_daily_sign_in_reward', { p_user_id: user.id });
+  if (error) throw error;
+  const result = Array.isArray(data) ? data[0] : data;
+  return res.json({
+    ok: true,
+    claimed: Boolean(result?.claimed),
+    amount: Number(result?.amount || 0),
+    streak: Number(result?.streak || profile.current_streak || 0)
+  });
 }
 
 // ==========================================

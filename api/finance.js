@@ -4,6 +4,9 @@ import { getSetting } from '../lib/rewards.js';
 import { ensureTierActive, getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
+const nigeriaWeekday = () => new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Africa/Lagos', weekday: 'long'
+}).format(new Date());
 
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -36,7 +39,7 @@ async function createDeposit(req, user, res) {
 
   const { amount, sender_name, payment_method, proof_ref } = req.body || {};
   const num = Number(amount);
-  const min = Number(await getSetting('min_deposit', '1000'));
+  const min = Number(await getSetting('min_deposit', '6000'));
   if (!num || num < min) return res.status(400).json({ error: `Minimum deposit is ₦${min.toLocaleString()}` });
   if (!sender_name) return res.status(400).json({ error: 'Sender name is required' });
 
@@ -64,6 +67,9 @@ async function checkWithdrawalEligibility(user) {
   const fee = Number(await getSetting('withdrawal_fee_percentage', '0'));
 
   if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee };
+  if (['Saturday', 'Sunday'].includes(nigeriaWeekday())) {
+    return { can_withdraw_now: false, reason_blocked: 'Withdrawals are available Monday to Friday.', min, fee };
+  }
   if (profile.tier === 'A0') return { can_withdraw_now: false, reason_blocked: 'Upgrade to A1 or higher to withdraw.', min, fee };
 
   const { count } = await supabaseAdmin.from('withdrawals')
