@@ -36,7 +36,7 @@ function navHTML() {
     </aside>
     <nav class="ops-mobile-nav">
       ${item('/dashboard.html', 'fa-solid fa-house', 'Home')}
-      ${item('/tasks.html', 'fa-solid fa-screwdriver-wrench', 'Machines', 'mobile-primary')}
+      ${item('/membership.html', 'fa-solid fa-screwdriver-wrench', 'Machines', 'mobile-primary')}
       ${item('/wallet.html', 'fa-solid fa-wallet', 'Wallet')}
       ${item('/salary.html', 'fa-solid fa-money-bill-trend-up', 'Salary')}
       ${item('/profile.html', 'fa-solid fa-user', 'Profile')}
