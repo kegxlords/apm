@@ -3,229 +3,61 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>3M — Machine Bay</title>
+  <title>3M — Rented Machines</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css">
   <meta name="theme-color" content="#0B1210">
   <style>
-    .console-heading { margin-bottom: 22px; }
-    .console-heading .eyebrow { color: var(--primary); font-size: .65rem; letter-spacing: .14em; font-weight: 800; }
-    .console-heading { display:flex; justify-content:space-between; gap:20px; align-items:end; }
-    @media(max-width:899px){.console-heading{display:block}.console-heading .btn{margin-top:12px;width:100%;}}
-    .streak-card {
-      display: flex; justify-content: space-between; align-items: center;
-      background: linear-gradient(135deg, #241A06, #1A2C24);
-      border: 1px solid rgba(245,197,24,.3);
-      border-radius: 20px; padding: 18px 20px; margin-bottom: 12px;
-    }
-    .streak-left { display: flex; align-items: center; gap: 14px; }
-    .flame { font-size: 2rem; filter: drop-shadow(0 0 12px rgba(255,140,0,.6)); }
-    .streak-num { font-family: 'Sora'; font-size: 1.4rem; font-weight: 800; color: var(--gold); }
-    .streak-lbl { font-size: .75rem; color: var(--muted); font-weight: 600; }
-    .today-earn { text-align: right; }
-    .today-earn b { font-family: 'Sora'; font-size: 1.2rem; color: var(--primary); display: block; }
-    .today-earn span { font-size: .72rem; color: var(--muted); font-weight: 600; }
-    .info-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
-    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; font-size: .74rem; font-weight: 700; background: var(--surface); border: 1px solid var(--border); color: var(--muted); }
-    .chip.mint { color: var(--primary); border-color: rgba(0,224,138,.3); }
-    .chip.gold { color: var(--gold); border-color: rgba(245,197,24,.3); }
-    .chip.full { color: var(--danger); border-color: rgba(255,90,90,.4); }
-    .claim-btn {
-      padding: 10px 16px; border: none; border-radius: 12px;
-      background: linear-gradient(135deg, var(--primary), #00B877);
-      color: #04110B; font-weight: 800; font-size: .82rem; cursor: pointer;
-      box-shadow: 0 6px 18px rgba(0,224,138,.3); white-space: nowrap;
-      transition: transform .12s;
-    }
-    .claim-btn:active { transform: scale(.94); }
-    .claim-btn:disabled { background: var(--surface-2); color: var(--muted); box-shadow: none; cursor: not-allowed; }
-    .claim-btn.done { background: rgba(0,224,138,.12); color: var(--primary); border: 1px solid rgba(0,224,138,.35); }
-    .coin-particle {
-      position: fixed; z-index: 99999; pointer-events: none;
-      color: var(--gold); font-size: 1.05rem;
-      animation: coin-fly .8s ease-out forwards;
-      text-shadow: 0 0 10px rgba(245,197,24,.7);
-    }
-    @keyframes coin-fly {
-      to { transform: translate(var(--dx), var(--dy)) scale(.3) rotate(260deg); opacity: 0; }
-    }
-    .reward-pop {
-      position: fixed; z-index: 99999; pointer-events: none;
-      font-family: 'Sora'; font-weight: 800; color: var(--primary); font-size: 1.2rem;
-      text-shadow: 0 0 16px rgba(0,224,138,.6);
-      animation: pop-up .9s ease-out forwards;
-    }
-    @keyframes pop-up {
-      0% { transform: translateY(0); opacity: 0; }
-      20% { opacity: 1; }
-      100% { transform: translateY(-70px); opacity: 0; }
-    }
+    .rented-hero { text-align:left; }
+    .rented-hero h1 { font-size:1.7rem; margin:6px 0; }
+    .rented-hero p { color:var(--muted); font-size:.84rem; line-height:1.5; }
+    .rented-card { padding:20px; margin-bottom:14px; overflow:hidden; }
+    .rented-top { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+    .rented-name { font-family:var(--font-display); font-weight:800; font-size:1rem; }
+    .rented-meta { margin-top:4px; color:var(--muted); font-size:.73rem; }
+    .rented-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:18px 0 14px; }
+    .rented-stat { padding:10px 6px; text-align:center; border-radius:12px; background:rgba(255,255,255,.55); border:1px solid rgba(16,185,129,.14); }
+    .rented-stat b { display:block; font-family:var(--font-display); font-size:.82rem; color:var(--primary-2); }
+    .rented-stat.gold b { color:var(--gold); }
+    .rented-stat span { display:block; margin-top:4px; color:var(--muted); font-size:.61rem; font-weight:700; text-transform:uppercase; }
+    .machine-progress { height:8px; overflow:hidden; border-radius:999px; background:rgba(85,116,101,.14); }
+    .machine-progress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#6EE7B7,#10B981,#047857); }
+    .rented-foot { display:flex; justify-content:space-between; gap:10px; margin-top:9px; color:var(--muted); font-size:.7rem; }
   </style>
 </head>
 <body>
   <div id="header-container"></div>
-
-  <div class="page">
-    <h1 class="page-title">Machine Bay</h1>
-    <p class="page-sub">Inspect the fleet. Repair a unit. Get paid when the job closes.</p>
-
-    <div class="streak-card">
-      <div class="streak-left">
-        <span class="flame">🔥</span>
-        <div>
-          <div class="streak-num" id="streak-num">0 days</div>
-          <div class="streak-lbl">Repair streak — keep it alive!</div>
-        </div>
-      </div>
-      <div class="today-earn">
-        <b id="today-earned">₦0</b>
-        <span>Earned today</span>
-      </div>
-    </div>
-
-    <div class="info-chips" id="info-chips"></div>
-
-    <div class="section-title"><i class="fa-solid fa-screwdriver-wrench"></i> Machines awaiting repair</div>
-    <div id="task-list">
-      <div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tasks...</div>
-    </div>
-  </div>
-
+  <main class="page">
+    <section class="hero-card rented-hero"><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / ACTIVE EQUIPMENT</span><h1>Rented Machines</h1><p>Your rented machines pay automatically. There is no daily task and no manual claim button. Keep the account funded and check back after the next 24-hour cycle.</p><a href="/membership.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-industry"></i> Rent another machine</a></section>
+    <div class="section-title"><i class="fa-solid fa-briefcase"></i> My rented packages</div>
+    <div id="rented-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading rented machines...</div></div>
+  </main>
   <div id="footer-container"></div>
-
   <script src="/assets/js/notifications.js"></script>
   <script type="module" src="/assets/js/components.js"></script>
   <script type="module">
     import { requireAuth, supabase } from '/assets/js/auth-guard.js';
     await requireAuth();
-
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
-
-    async function loadMachines() {
-      const list = document.getElementById('task-list');
-      list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading tasks...</div>';
+    const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
+    const list = document.getElementById('rented-list');
+    const dateTime = (value) => value ? new Date(value).toLocaleString('en-NG', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
+    async function load() {
       try {
-        const res = await fetch('/api/tasks?action=getTasks', { headers: { Authorization: `Bearer ${await token()}` } });
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); }
-        catch { throw new Error(`Server returned invalid response (HTTP ${res.status}). Check deployment/env vars.`); }
-        if (!res.ok) throw new Error(data.error || `Request failed (HTTP ${res.status})`);
-
-        document.getElementById('streak-num').textContent = `${data.streak} day${data.streak === 1 ? '' : 's'}`;
-        document.getElementById('today-earned').textContent = `₦${Number(data.today_earned).toLocaleString()}`;
-
-        // Info chips: daily limit, tier pay rate, expiry
-        const chips = [];
-        const limit = Number(data.daily_limit || 0);
-        const used = Number(data.claims_today || 0);
-        const limitReached = limit > 0 && used >= limit;
-        chips.push(`<span class="chip ${limitReached ? 'full' : 'mint'}"><i class="fa-solid fa-screwdriver-wrench"></i> Repairs today: ${used}${limit > 0 ? ' / ' + limit : ' (unlimited)'}</span>`);
-        if (Number(data.task_bonus || 0) > 0) {
-          chips.push(`<span class="chip gold"><i class="fa-solid fa-coins"></i> ₦${Number(data.task_bonus).toLocaleString()} per repair (${data.tier} rate)</span>`);
-        }
-        if (data.tier_expires_at) {
-          const days = Math.ceil((new Date(data.tier_expires_at) - Date.now()) / 86400000);
-          chips.push(`<span class="chip gold"><i class="fa-regular fa-clock"></i> Tier expires in ${days} day${days === 1 ? '' : 's'}</span>`);
-        }
-        document.getElementById('info-chips').innerHTML = chips.join('');
-
-        if (!data.tasks.length) {
-          list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-inbox"></i>No machines are waiting for repair. Check back soon!</div>';
-          return;
-        }
-
-        const machineNames = [
-          'Autonomous Haul Truck', 'Primary Crusher', 'Hydraulic Drill Rig',
-          'Conveyor Drive System', 'Ore Sorter Array', 'Ventilation Control Unit'
-        ];
-        const machineIcons = [
-          'fa-solid fa-truck-monster', 'fa-solid fa-gears', 'fa-solid fa-bore-hole',
-          'fa-solid fa-road', 'fa-solid fa-filter-circle-dollar', 'fa-solid fa-fan'
-        ];
-        list.innerHTML = data.tasks.map((t, index) => {
-          const machineName = machineNames[index % machineNames.length];
-          const machineIcon = machineIcons[index % machineIcons.length];
-          let btn;
-          if (t.locked) btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> ${t.min_tier}</button>`;
-          else if (t.claimed_today) btn = `<button class="claim-btn done" disabled><i class="fa-solid fa-check"></i> Repaired</button>`;
-          else if (limitReached) btn = `<button class="claim-btn" disabled><i class="fa-solid fa-lock"></i> Limit reached</button>`;
-          else btn = `<button class="claim-btn" onclick="claimMachine('${t.id}', this)">Repair ₦${t.effective_reward.toLocaleString()}</button>`;
-          return `
-            <div class="task-card ${t.locked ? 'locked' : ''} ${t.claimed_today ? 'claimed' : ''}" id="card-${t.id}">
-              <div class="task-icon"><i class="${machineIcon}"></i></div>
-              <div class="task-info">
-                <div class="task-title">${machineName}</div>
-                <div class="task-desc">${t.description || 'Run diagnostics, restore this unit, and return it to production.'}</div>
-              </div>
-              ${btn}
-            </div>`;
+        const res = await fetch('/api/mining-machines?action=getRented', { headers: { Authorization: `Bearer ${await token()}` } });
+        const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!data.rented.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No rented machines yet. Choose a package to get started.</div>'; return; }
+        list.innerHTML = data.rented.map((machine) => {
+          const start = new Date(machine.purchase_time || machine.created_at).getTime();
+          const end = new Date(machine.ends_at || `${machine.end_date}T23:59:59Z`).getTime();
+          const progress = Math.max(0, Math.min(100, ((Date.now() - start) / Math.max(1, end - start)) * 100));
+          const active = machine.status === 'active';
+          return `<article class="card rented-card"><div class="rented-top"><div><div class="rented-name">${machine.wealth_packages?.name || 'Mining Machine'}</div><div class="rented-meta">Purchased ${dateTime(machine.purchase_time || machine.created_at)}</div></div><span class="badge ${active ? 'badge-mint' : 'badge-gray'}">${active ? 'Active' : 'Completed'}</span></div><div class="rented-stats"><div class="rented-stat"><b>${money(machine.amount)}</b><span>Invested</span></div><div class="rented-stat gold"><b>${money(machine.daily_return)}</b><span>Daily income</span></div><div class="rented-stat"><b>${money(machine.total_earned)}</b><span>Earned so far</span></div></div><div class="machine-progress"><span style="width:${progress}%"></span></div><div class="rented-foot"><span>${active ? `Next income ${dateTime(machine.next_income_at)}` : 'Rental cycle complete'}</span><span>Ends ${dateTime(machine.ends_at || machine.end_date)}</span></div></article>`;
         }).join('');
-      } catch (err) {
-        console.error('[TASKS] Load failed:', err);
-        list.innerHTML = `
-          <div class="empty-state">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            ${err.message}
-            <br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Retry</button>
-          </div>`;
-        showToast(err.message, 'error');
-      }
+      } catch (error) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }
     }
-
-    function celebrate(x, y, amount) {
-      for (let i = 0; i < 12; i++) {
-        const c = document.createElement('span');
-        c.className = 'coin-particle';
-        c.innerHTML = '<i class="fa-solid fa-coins"></i>';
-        const angle = (Math.PI * 2 * i) / 12 + Math.random() * 0.5;
-        const dist = 60 + Math.random() * 70;
-        c.style.left = x + 'px'; c.style.top = y + 'px';
-        c.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-        c.style.setProperty('--dy', Math.sin(angle) * dist - 30 + 'px');
-        document.body.appendChild(c);
-        setTimeout(() => c.remove(), 850);
-      }
-      const pop = document.createElement('span');
-      pop.className = 'reward-pop';
-      pop.textContent = `+₦${amount.toLocaleString()}`;
-      pop.style.left = x - 30 + 'px'; pop.style.top = y - 20 + 'px';
-      document.body.appendChild(pop);
-      setTimeout(() => pop.remove(), 950);
-    }
-
-    window.claimMachine = async (taskId, btn) => {
-      btn.disabled = true;
-      btn.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
-      try {
-        const res = await fetch('/api/tasks?action=claimTask', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-          body: JSON.stringify({ task_id: taskId })
-        });
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); }
-        catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs`); }
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-        const rect = btn.getBoundingClientRect();
-        celebrate(rect.left + rect.width / 2, rect.top + rect.height / 2, data.amount);
-        btn.className = 'claim-btn done';
-        btn.innerHTML = '<i class="fa-solid fa-check"></i> Repaired';
-        document.getElementById(`card-${taskId}`)?.classList.add('claimed');
-        showToast(`+₦${data.amount.toLocaleString()} repair reward credited! 🔧 ${data.streak}-day streak`, 'gold');
-        loadMachines();
-        window.APMShell?.refresh();
-      } catch (err) {
-        console.error('[TASKS] Repair failed:', err);
-        showToast(err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Repair';
-      }
-    };
-
-    loadMachines();
+    load();
+    setInterval(load, 60000);
   </script>
 </body>
 </html>
