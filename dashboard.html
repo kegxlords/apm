@@ -51,10 +51,11 @@
       <div class="stat-card"><div class="stat-value" id="stat-team">0</div><div class="stat-label">Team Members</div></div>
       <div class="stat-card"><div class="stat-value" id="stat-tasks">0</div><div class="stat-label">Machines Repaired</div></div>
     </div>
+    <div class="card" style="margin-bottom:18px;"><i class="fa-solid fa-gift mint"></i> Daily sign-in reward: <b class="mint">₦200</b>, credited once each day.</div>
 
     <div class="quick-grid">
       <a href="/tasks.html" class="quick-tile"><i class="fa-solid fa-hand-pointer"></i>Machines</a>
-      <a href="/wealth.html" class="quick-tile gold"><i class="fa-solid fa-gem"></i>Wealth</a>
+      <a id="telegram-tile" href="#" class="quick-tile" target="_blank" rel="noopener noreferrer" hidden><i class="fa-brands fa-telegram"></i>Telegram</a>
       <a href="/membership.html" class="quick-tile gold"><i class="fa-solid fa-crown"></i>Tiers</a>
       <a href="/team.html" class="quick-tile"><i class="fa-solid fa-users"></i>Team</a>
     </div>
@@ -100,6 +101,8 @@
       referral_commission: { icon: 'fa-solid fa-users',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
       wealth_return:       { icon: 'fa-solid fa-gem',          bg: 'var(--gold-dim)', color: 'var(--gold)' },
       wealth_invest:       { icon: 'fa-solid fa-gem',          bg: 'rgba(255,176,32,.15)', color: 'var(--warning)' },
+      daily_login_reward: { icon: 'fa-solid fa-gift',          bg: 'var(--primary-dim)', color: 'var(--primary)' },
+      mining_machine_capital_return: { icon: 'fa-solid fa-rotate-left', bg: 'var(--primary-dim)', color: 'var(--primary)' },
       membership_upgrade:  { icon: 'fa-solid fa-crown',        bg: 'var(--gold-dim)', color: 'var(--gold)' },
       salary_bonus:        { icon: 'fa-solid fa-money-bill-trend-up', bg: 'var(--primary-dim)', color: 'var(--primary)' },
       admin_credit:        { icon: 'fa-solid fa-user-shield',  bg: 'var(--primary-dim)', color: 'var(--primary)' },
@@ -126,7 +129,7 @@
         supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('referred_by', user.id),
         supabase.from('task_claims').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('transactions').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(8),
-        supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').gte('created_at', `${today}T00:00:00.000Z`)
+        supabase.from('transactions').select('amount').eq('user_id', user.id).eq('status', 'approved').neq('type', 'mining_machine_capital_return').gte('created_at', `${today}T00:00:00.000Z`)
       ]);
 
       countUp(document.getElementById('balance'), Number(walletR.data?.balance || 0));
@@ -136,7 +139,7 @@
       const todayEarned = (todayR.data || []).reduce((s, r) => s + Number(r.amount), 0);
       document.getElementById('stat-today').textContent = `₦${todayEarned.toLocaleString()}`;
 
-      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return', 'salary_bonus'];
+      const earnTypes = ['task_claim', 'referral_commission', 'wealth_return', 'salary_bonus', 'daily_login_reward'];
       const { data: allEarn } = await supabase.from('transactions').select('amount')
         .eq('user_id', user.id).eq('status', 'approved').in('type', earnTypes);
       document.getElementById('stat-total').textContent = `₦${(allEarn || []).reduce((s, r) => s + Number(r.amount), 0).toLocaleString()}`;
@@ -170,19 +173,48 @@
 
     load();
 
+    async function claimDailySignIn() {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (!session?.access_token) return;
+        const response = await fetch('/api/tasks?action=claimDailySignIn', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` }
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+        if (result.claimed) {
+          showToast(`Daily sign-in reward of ₦${Number(result.amount).toLocaleString()} added.`, 'success');
+          await load();
+          window.APMShell?.refresh();
+        }
+      } catch (error) {
+        console.error('[DASHBOARD] Daily sign-in reward failed:', error);
+      }
+    }
+    claimDailySignIn();
+
     // ===== Telegram welcome popup (once per day) =====
     const todayStr = new Date().toISOString().slice(0, 10);
     const POPUP_KEY = 'apm_welcome_shown';
 
-    async function initWelcomePopup() {
+    async function initTelegramLinks() {
       const { data: tgRow } = await supabase
         .from('site_settings')
         .select('value')
         .eq('key', 'telegram_link')
         .single();
 
-      const tgLink = tgRow?.value;
+      let tgLink;
+      try {
+        const parsedLink = new URL(tgRow?.value || '');
+        if (parsedLink.protocol === 'https:') tgLink = parsedLink.href;
+      } catch { /* Leave Telegram entry points unavailable until a valid link is configured. */ }
       if (!tgLink) return;
+
+      const telegramTile = document.getElementById('telegram-tile');
+      telegramTile.href = tgLink;
+      telegramTile.hidden = false;
 
       if (localStorage.getItem(POPUP_KEY) !== todayStr) {
         document.getElementById('tg-join-btn').href = tgLink;
@@ -201,7 +233,7 @@
       if (e.target.id === 'welcome-modal') dismissPopup();
     });
 
-    initWelcomePopup();
+    initTelegramLinks();
   </script>
 </body>
 </html>
