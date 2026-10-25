@@ -87,7 +87,12 @@ async function checkWithdrawalEligibility(user) {
 
   if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee };
   // Weekend restriction removed to allow withdrawals everyday
-  if (profile.tier === 'A0') return { can_withdraw_now: false, reason_blocked: 'Upgrade to A1 or higher to withdraw.', min, fee };
+  const { count: activeMachines, error: machineError } = await supabaseAdmin.from('wealth_investments')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', user.id)
+    .eq('status', 'active');
+  if (machineError) throw machineError;
+  if (!activeMachines) return { can_withdraw_now: false, reason_blocked: 'You need at least one active Mining Machine to withdraw.', min, fee };
 
   const { count } = await supabaseAdmin.from('withdrawals')
     .select('id', { count: 'exact', head: true })
