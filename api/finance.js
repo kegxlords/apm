@@ -4,9 +4,6 @@ import { getSetting } from '../lib/rewards.js';
 import { ensureTierActive, getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
-const nigeriaWeekday = () => new Intl.DateTimeFormat('en-US', {
-  timeZone: 'Africa/Lagos', weekday: 'long'
-}).format(new Date());
 
 export default async function handler(req, res) {
   const action = req.query.action;
@@ -89,9 +86,7 @@ async function checkWithdrawalEligibility(user) {
   const fee = Number(await getSetting('withdrawal_fee_percentage', '0'));
 
   if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee };
-  if (['Saturday', 'Sunday'].includes(nigeriaWeekday())) {
-    return { can_withdraw_now: false, reason_blocked: 'Withdrawals are available Monday to Friday.', min, fee };
-  }
+  // Weekend restriction removed to allow withdrawals everyday
   if (profile.tier === 'A0') return { can_withdraw_now: false, reason_blocked: 'Upgrade to A1 or higher to withdraw.', min, fee };
 
   const { count } = await supabaseAdmin.from('withdrawals')
