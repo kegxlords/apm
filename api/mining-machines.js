@@ -3,7 +3,7 @@ import { verifyUser, getProfile } from '../lib/auth.js';
 
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 const today = () => new Date().toISOString().slice(0, 10);
-const purchaseLimit = (pkg) => [2, 5, 10].includes(Number(pkg.duration_days)) ? 1 : 2;
+const purchaseLimit = (pkg) => [2, 5, 10, 365].includes(Number(pkg.duration_days)) ? 1 : 2;
 
 export default async function handler(req, res) {
   try {
@@ -153,7 +153,7 @@ async function processPayouts(req, res) {
 
 // The 50K machine is the only package with automatic income.
 // Payout #1 is due 24 hours after purchase; each later payout is due every 24 hours.
-// Its profit is paid daily, and the locked capital is returned on the 365th payout.
+// Only the daily income is paid; the purchase capital is not returned.
 async function processDailyMachinePayouts() {
   const now = Date.now();
   const dayMs = 86400000;
@@ -186,8 +186,7 @@ async function processDailyMachinePayouts() {
 
     const profit = Number(pkg.daily_return) * pending.length;
     const finalPayout = dueCount >= 365;
-    const capital = finalPayout ? Number(machine.amount || 50000) : 0;
-    const totalCredit = profit + capital;
+    const totalCredit = profit;
     const { data: wallet, error: walletError } = await supabaseAdmin
       .from('wallets').select('balance').eq('user_id', machine.user_id).single();
     if (walletError) throw walletError;
@@ -206,14 +205,6 @@ async function processDailyMachinePayouts() {
       reference: `MACHINE_DAILY_${machine.id}_${index}`,
       description: `24-hour machine income: ${pkg.name}`
     }));
-    if (capital > 0) rows.push({
-      user_id: machine.user_id,
-      type: 'mining_machine_capital_return',
-      amount: capital,
-      status: 'approved',
-      reference: `MACHINE_CAPITAL_${machine.id}`,
-      description: `Capital returned at maturity: ${pkg.name}`
-    });
     const { error: transactionError } = await supabaseAdmin.from('transactions').insert(rows);
     if (transactionError) throw transactionError;
 
