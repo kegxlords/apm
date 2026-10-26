@@ -3,118 +3,307 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>3M — My Team</title>
+  <title>3M — Referral Network</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/assets/css/style.css?v=royal-blue-20261023">
   <meta name="theme-color" content="#0B1210">
   <style>
-    .ref-card { background: linear-gradient(135deg, #241A06, #1A2C24); border: 1px solid rgba(245,197,24,.35); border-radius: 24px; padding: 24px; text-align: center; margin-bottom: 20px; }
-    .ref-label { font-size: .78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    .ref-code { font-family: 'Sora'; font-size: 2rem; font-weight: 800; color: var(--gold); letter-spacing: 4px; margin: 10px 0 16px; text-shadow: 0 0 24px rgba(245,197,24,.35); }
-    .share-row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
-    .member-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
-    .member-row:last-child { border-bottom: none; }
-    .avatar { width: 40px; height: 40px; border-radius: 50%; background: var(--primary-dim); color: var(--primary); display: grid; place-items: center; font-weight: 800; flex-shrink: 0; }
-    .member-info { flex: 1; min-width: 0; }
-    .member-name { font-weight: 700; font-size: .9rem; }
-    .member-email { font-size: .72rem; color: var(--muted); }
+    .team-page { max-width: 1180px; margin: 0 auto; padding-bottom: 38px; }
+    .team-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; margin: 8px 0 20px; }
+    .team-heading h1 { margin:5px 0 6px; font-size:clamp(1.65rem,4vw,2.35rem); letter-spacing:-.045em; }
+    .team-heading p { margin:0; color:var(--muted); font-size:.88rem; line-height:1.55; }
+    .team-eyebrow { color:var(--primary); font-size:.66rem; font-weight:800; letter-spacing:.17em; text-transform:uppercase; }
+    .team-hero { position:relative; overflow:hidden; display:grid; grid-template-columns:1fr auto; align-items:center; gap:20px; padding:24px; margin-bottom:16px; border:1px solid rgba(110,231,183,.2); border-radius:22px; background:radial-gradient(ellipse at 78% 12%,rgba(110,231,183,.16),transparent 42%),linear-gradient(120deg,#14201d,#15291f 58%,#1d2618); box-shadow:0 18px 45px rgba(0,0,0,.18); }
+    .team-hero:after { content:""; position:absolute; width:220px; height:220px; right:18%; top:-160px; border:1px solid rgba(110,231,183,.12); border-radius:50%; box-shadow:0 0 0 28px rgba(110,231,183,.025),0 0 0 58px rgba(110,231,183,.02); pointer-events:none; }
+    .hero-copy,.hero-actions { position:relative; z-index:1; }
+    .hero-topline { display:flex; align-items:center; gap:8px; color:#a6b8ae; font-size:.7rem; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
+    .hero-topline i { color:var(--primary); }
+    .invite-code { display:flex; align-items:center; gap:12px; margin-top:10px; }
+    .invite-code strong { color:#f4d76c; font-family:'Sora',sans-serif; font-size:clamp(1.65rem,5vw,2.3rem); letter-spacing:.13em; text-shadow:0 0 22px rgba(245,197,24,.2); }
+    .hero-note { color:#a6b8ae; font-size:.8rem; margin-top:6px; }
+    .hero-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:9px; }
+    .hero-actions .btn { white-space:nowrap; }
+    .rate-strip { display:flex; flex-wrap:wrap; gap:7px; margin-top:15px; }
+    .rate-pill { padding:6px 9px; border:1px solid rgba(255,255,255,.08); border-radius:999px; background:rgba(0,0,0,.18); color:#c0d0c7; font-size:.7rem; }
+    .rate-pill b { color:#9af0cb; }
+    .stats-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:12px; margin:14px 0; }
+    .team-stat { min-height:106px; padding:16px; position:relative; overflow:hidden; }
+    .stat-top { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    .stat-icon { display:grid; place-items:center; width:32px; height:32px; border-radius:10px; background:rgba(110,231,183,.1); color:var(--primary); }
+    .stat-value { margin-top:9px; font-family:'Sora',sans-serif; font-size:1.25rem; font-weight:800; letter-spacing:-.03em; }
+    .stat-label { margin-top:2px; color:var(--muted); font-size:.72rem; }
+    .level-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:14px 0 24px; }
+    .level-card { display:flex; align-items:center; gap:13px; padding:15px; }
+    .level-mark { display:grid; place-items:center; flex:none; width:41px; height:41px; border-radius:13px; background:linear-gradient(145deg,rgba(110,231,183,.2),rgba(110,231,183,.055)); color:var(--primary); font-family:'Sora',sans-serif; font-size:.78rem; font-weight:900; }
+    .level-name { color:var(--muted); font-size:.71rem; }
+    .level-value { margin-top:3px; font-weight:800; font-size:.95rem; }
+    .level-meta { margin-top:3px; color:var(--muted); font-size:.68rem; }
+    .data-section { margin-top:22px; }
+    .section-head { display:flex; align-items:flex-end; justify-content:space-between; gap:14px; margin-bottom:11px; }
+    .section-head h2 { margin:0; font-family:'Sora',sans-serif; font-size:1rem; letter-spacing:-.02em; }
+    .section-head p { margin:4px 0 0; color:var(--muted); font-size:.73rem; }
+    .section-title-icon { color:var(--primary); margin-right:7px; }
+    .table-tools { display:flex; align-items:center; gap:8px; }
+    .table-tools .input,.table-tools .select { min-width:125px; height:37px; padding:7px 10px; font-size:.76rem; }
+    .table-wrap { overflow:auto; border-radius:16px; }
+    .premium-table { width:100%; min-width:690px; border-collapse:collapse; }
+    .premium-table th { padding:12px 14px; color:#91a39a; text-align:left; white-space:nowrap; font-size:.65rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; border-bottom:1px solid var(--border); }
+    .premium-table td { padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.055); color:#dce7e0; vertical-align:middle; font-size:.78rem; }
+    .premium-table tr:last-child td { border-bottom:0; }
+    .premium-table tbody tr:hover { background:rgba(255,255,255,.018); }
+    .member-cell { display:flex; align-items:center; gap:10px; min-width:160px; }
+    .member-avatar { display:grid; place-items:center; width:34px; height:34px; flex:none; border-radius:11px; background:rgba(110,231,183,.1); color:#a2edc9; font-weight:800; }
+    .member-name { font-weight:750; }
+    .member-email { margin-top:3px; color:var(--muted); font-size:.68rem; }
+    .tier-tag,.status-tag,.level-tag { display:inline-flex; align-items:center; gap:5px; padding:5px 8px; border-radius:999px; white-space:nowrap; font-size:.65rem; font-weight:800; }
+    .tier-tag { color:#eed787; background:rgba(245,197,24,.1); }
+    .status-active,.status-completed { color:#8ce7bd; background:rgba(110,231,183,.1); }
+    .status-inactive,.status-rejected { color:#aab5ae; background:rgba(170,181,174,.1); }
+    .status-frozen,.status-pending { color:#f1c978; background:rgba(241,201,120,.11); }
+    .status-expired { color:#ffaaa0; background:rgba(255,120,110,.1); }
+    .level-tag { color:#b8c9ff; background:rgba(122,153,255,.1); }
+    .amount-positive { color:#9aebc3 !important; font-weight:800; white-space:nowrap; }
+    .table-empty { padding:34px 14px; text-align:center; color:var(--muted); font-size:.8rem; }
+    .table-empty i { display:block; margin-bottom:9px; color:#82988c; font-size:1.25rem; }
+    .notice-line { display:none; margin-top:10px; color:#c1b286; font-size:.72rem; }
+    .notice-line.visible { display:block; }
+    .commission-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .commission-item { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:13px 14px; }
+    .commission-item strong { color:#9aebc3; font-size:.88rem; }
+    .commission-item span { color:var(--muted); font-size:.7rem; }
+    .loading-row { color:var(--muted); text-align:center; }
+    @media(max-width:760px) {
+      .team-heading { align-items:flex-start; flex-direction:column; }
+      .team-hero { grid-template-columns:1fr; padding:20px; }
+      .hero-actions { justify-content:flex-start; }
+      .stats-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+      .level-grid { gap:8px; }
+      .level-card { align-items:flex-start; flex-direction:column; gap:8px; padding:12px; }
+      .level-mark { width:34px; height:34px; border-radius:10px; }
+      .section-head { align-items:flex-start; flex-direction:column; }
+      .table-tools { width:100%; }
+      .table-tools .input,.table-tools .select { flex:1; min-width:0; }
+    }
+    @media(max-width:420px) {
+      .team-page { padding-left:0; padding-right:0; }
+      .team-hero { padding:17px; }
+      .hero-actions .btn { padding:9px 11px; font-size:.72rem; }
+      .level-grid { grid-template-columns:1fr; }
+      .level-card { align-items:center; flex-direction:row; }
+      .commission-grid { grid-template-columns:1fr; }
+      .team-stat { min-height:98px; padding:13px; }
+      .stat-value { font-size:1.1rem; }
+    }
   </style>
 </head>
 <body>
   <div id="header-container"></div>
-  <div class="page">
-    <h1 class="page-title">My Team</h1>
-    <p class="page-sub">Earn on approved deposits from direct referrals and the next two team levels: <span class="gold" id="comm-rates">Level 1: 10% · Level 2: 2% · Level 3: 1%</span>.</p>
-
-    <div class="ref-card">
-      <div class="ref-label">Your Referral Code</div>
-      <div class="ref-code" id="ref-code">—</div>
-      <div class="share-row">
-        <button class="btn btn-primary btn-sm" onclick="copyLink()"><i class="fa-regular fa-copy"></i> Copy Invite Link</button>
-        <button class="btn btn-ghost btn-sm" onclick="shareWhatsApp()"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
-        <button class="btn btn-ghost btn-sm" onclick="shareTelegram()"><i class="fa-brands fa-telegram"></i> Telegram</button>
+  <main class="page team-page">
+    <div class="team-heading">
+      <div>
+        <div class="team-eyebrow">Northstar / Network Intelligence</div>
+        <h1 class="page-title">Referral Network</h1>
+        <p>Track your team's growth, member activity, deposits, and referral rewards.</p>
       </div>
+      <a class="btn btn-ghost btn-sm" href="/dashboard.html"><i class="fa-solid fa-arrow-left"></i> Dashboard</a>
     </div>
 
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-value" id="stat-team">0</div><div class="stat-label">Team Members</div></div>
-      <div class="stat-card"><div class="stat-value gold" id="stat-commissions">₦0</div><div class="stat-label">Commissions Earned</div></div>
-    </div>
+    <section class="team-hero">
+      <div class="hero-copy">
+        <div class="hero-topline"><i class="fa-solid fa-share-nodes"></i> Your private invitation link</div>
+        <div class="invite-code"><strong id="ref-code">••••••••</strong></div>
+        <div class="hero-note">Share your code and build a team across three referral levels.</div>
+        <div class="rate-strip" id="rate-strip">
+          <span class="rate-pill">Level 1 <b>10%</b></span><span class="rate-pill">Level 2 <b>2%</b></span><span class="rate-pill">Level 3 <b>1%</b></span>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <button class="btn btn-primary btn-sm" id="copy-link-btn"><i class="fa-regular fa-copy"></i> Copy invite link</button>
+        <button class="btn btn-ghost btn-sm" id="share-wa-btn"><i class="fa-brands fa-whatsapp"></i> WhatsApp</button>
+        <button class="btn btn-ghost btn-sm" id="share-tg-btn"><i class="fa-brands fa-telegram"></i> Telegram</button>
+      </div>
+    </section>
 
-    <div class="section-title"><i class="fa-solid fa-users"></i> My Team Members</div>
-    <div class="card" id="team-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
+    <section class="stats-grid" aria-label="Team overview">
+      <article class="card team-stat"><div class="stat-top"><span class="stat-icon"><i class="fa-solid fa-people-group"></i></span></div><div class="stat-value" id="stat-team">—</div><div class="stat-label">Total team members</div></article>
+      <article class="card team-stat"><div class="stat-top"><span class="stat-icon"><i class="fa-solid fa-circle-check"></i></span></div><div class="stat-value" id="stat-active">—</div><div class="stat-label">Active referrals</div></article>
+      <article class="card team-stat"><div class="stat-top"><span class="stat-icon"><i class="fa-solid fa-user-clock"></i></span></div><div class="stat-value" id="stat-inactive">—</div><div class="stat-label">Inactive referrals</div></article>
+      <article class="card team-stat"><div class="stat-top"><span class="stat-icon"><i class="fa-solid fa-arrow-trend-up"></i></span></div><div class="stat-value" id="stat-deposits">—</div><div class="stat-label">Completed team deposits</div></article>
+      <article class="card team-stat"><div class="stat-top"><span class="stat-icon"><i class="fa-solid fa-coins"></i></span></div><div class="stat-value" id="stat-commissions">—</div><div class="stat-label">Commissions earned</div></article>
+    </section>
 
-    <div class="section-title"><i class="fa-solid fa-coins"></i> Commission Earnings</div>
-    <div class="card" id="comm-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
-  </div>
+    <section class="level-grid" id="level-grid" aria-label="Referral levels">
+      <article class="card level-card"><span class="level-mark">L1</span><div><div class="level-name">Direct referrals</div><div class="level-value" id="level-1-count">— members</div><div class="level-meta" id="level-1-meta">Loading team volume…</div></div></article>
+      <article class="card level-card"><span class="level-mark">L2</span><div><div class="level-name">Second level</div><div class="level-value" id="level-2-count">— members</div><div class="level-meta" id="level-2-meta">Loading team volume…</div></div></article>
+      <article class="card level-card"><span class="level-mark">L3</span><div><div class="level-name">Third level</div><div class="level-value" id="level-3-count">— members</div><div class="level-meta" id="level-3-meta">Loading team volume…</div></div></article>
+    </section>
+
+    <section class="data-section">
+      <div class="section-head">
+        <div><h2><i class="fa-solid fa-diagram-project section-title-icon"></i>Referral members</h2><p>Active means the member currently has at least one active Mining Machine.</p></div>
+        <div class="table-tools">
+          <input class="input" id="member-search" type="search" placeholder="Search name…" aria-label="Search referrals">
+          <select class="select" id="member-status-filter" aria-label="Filter member status"><option value="all">All statuses</option><option value="active">Active</option><option value="inactive">Inactive</option></select>
+          <select class="select" id="member-level-filter" aria-label="Filter referral level"><option value="all">All levels</option><option value="1">Level 1</option><option value="2">Level 2</option><option value="3">Level 3</option></select>
+        </div>
+      </div>
+      <div class="card table-wrap">
+        <table class="premium-table"><thead><tr><th>Member</th><th>Level</th><th>Active machines</th><th>Status</th><th>Joined</th><th>Completed deposits</th></tr></thead><tbody id="members-tbody"><tr><td colspan="6" class="loading-row">Loading referral network…</td></tr></tbody></table>
+      </div>
+      <div class="notice-line" id="member-notice"></div>
+    </section>
+
+    <section class="data-section">
+      <div class="section-head">
+        <div><h2><i class="fa-solid fa-building-columns section-title-icon"></i>Referral deposits</h2><p>Deposits made by your Level 1–3 referrals. Only completed deposits count toward team volume.</p></div>
+        <div class="table-tools"><select class="select" id="deposit-status-filter" aria-label="Filter deposit status"><option value="all">All deposits</option><option value="completed">Completed</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select></div>
+      </div>
+      <div class="card table-wrap">
+        <table class="premium-table"><thead><tr><th>Referral</th><th>Level</th><th>Deposit amount</th><th>Status</th><th>Date</th></tr></thead><tbody id="deposits-tbody"><tr><td colspan="5" class="loading-row">Loading referral deposits…</td></tr></tbody></table>
+      </div>
+      <div class="notice-line" id="deposit-notice"></div>
+    </section>
+
+    <section class="data-section">
+      <div class="section-head"><div><h2><i class="fa-solid fa-coins section-title-icon"></i>Referral rewards</h2><p>Commission paid to you from approved team deposits.</p></div></div>
+      <div class="commission-grid" id="commissions-list"><div class="card table-empty">Loading referral rewards…</div></div>
+    </section>
+  </main>
   <div id="footer-container"></div>
 
   <script src="/assets/js/notifications.js"></script>
   <script type="module" src="/assets/js/components.js"></script>
   <script type="module">
     import { requireAuth, supabase } from '/assets/js/auth-guard.js';
+
     const user = await requireAuth();
+    const token = async () => (await supabase.auth.getSession()).data.session?.access_token;
+    const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
+    const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+    const dateText = (value) => value ? new Date(value).toLocaleDateString('en-NG', { year: 'numeric', month: 'short', day: 'numeric' }) : '—';
+    const statusClass = (value) => ({ active: 'status-active', inactive: 'status-inactive', expired: 'status-expired', frozen: 'status-frozen', completed: 'status-completed', pending: 'status-pending', rejected: 'status-rejected' }[String(value || '').toLowerCase()] || 'status-inactive');
+    let payload = null;
+    let inviteUrl = '';
 
-    const [profileR, settingsR, teamR, commR] = await Promise.all([
-      supabase.from('profiles').select('referral_code').eq('id', user.id).single(),
-      supabase.from('site_settings').select('key, value').in('key', ['referral_commission_percentage', 'referral_level_2_percentage', 'referral_level_3_percentage']),
-      supabase.from('profiles').select('full_name, email, tier, created_at').eq('referred_by', user.id).order('created_at', { ascending: false }),
-      supabase.from('referral_commissions').select('commission_amount, commission_level, created_at').eq('referrer_id', user.id).order('created_at', { ascending: false }).limit(30)
-    ]);
-
-    const code = profileR.data?.referral_code || '—';
-    const inviteLink = `${location.origin}/register.html?ref=${code}`;
-    document.getElementById('ref-code').textContent = code;
-    const referralSettings = Object.fromEntries((settingsR.data || []).map(row => [row.key, row.value]));
-    document.getElementById('comm-rates').textContent = `Level 1: ${referralSettings.referral_commission_percentage ?? '10'}% · Level 2: ${referralSettings.referral_level_2_percentage ?? '2'}% · Level 3: ${referralSettings.referral_level_3_percentage ?? '1'}%`;
-
-    window.copyLink = () => { navigator.clipboard.writeText(inviteLink); showToast('Invite link copied!', 'success'); };
-    window.shareWhatsApp = () => {
-      const msg = encodeURIComponent(`Join me on 3M and start earning daily! Use my code ${code} to sign up: ${inviteLink}`);
-      open(`https://wa.me/?text=${msg}`, '_blank');
-    };
-    window.shareTelegram = () => {
-      const msg = encodeURIComponent(`Join me on 3M and start earning daily! Use my code ${code}: ${inviteLink}`);
-      open(`https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${msg}`, '_blank');
-    };
-
-    // Stats
-    document.getElementById('stat-team').textContent = teamR.count ?? (teamR.data || []).length;
-    const totalComm = (commR.data || []).reduce((s, r) => s + Number(r.commission_amount), 0);
-    document.getElementById('stat-commissions').textContent = `₦${totalComm.toLocaleString()}`;
-
-    // Team list (emails masked)
-    const mask = (email) => {
-      const [n, d] = email.split('@');
-      return `${n[0] || '*'}***@${d || '***'}`;
-    };
-    const teamBox = document.getElementById('team-list');
-    if (!(teamR.data || []).length) {
-      teamBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-user-plus"></i>No team members yet. Share your link!</div>';
-    } else {
-      teamBox.innerHTML = teamR.data.map(m => `
-        <div class="member-row">
-          <div class="avatar">${(m.full_name || '?')[0].toUpperCase()}</div>
-          <div class="member-info">
-            <div class="member-name">${m.full_name || 'Member'}</div>
-            <div class="member-email">${mask(m.email || '')} • joined ${new Date(m.created_at).toLocaleDateString()}</div>
-          </div>
-          <span class="badge ${m.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${m.tier}</span>
-        </div>`).join('');
+    function renderMembers() {
+      if (!payload) return;
+      const search = document.getElementById('member-search').value.trim().toLowerCase();
+      const status = document.getElementById('member-status-filter').value;
+      const level = document.getElementById('member-level-filter').value;
+      const filtered = payload.members.filter((member) => {
+        const matchesSearch = !search || member.name.toLowerCase().includes(search) || member.email.toLowerCase().includes(search);
+        const matchesStatus = status === 'all' || (status === 'active' ? member.active : !member.active);
+        const matchesLevel = level === 'all' || String(member.level) === level;
+        return matchesSearch && matchesStatus && matchesLevel;
+      });
+      const tbody = document.getElementById('members-tbody');
+      if (!filtered.length) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="table-empty"><i class="fa-solid fa-user-group"></i>${payload.members.length ? 'No referrals match these filters.' : 'Your referral list is empty. Share your invite link to get started.'}</div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = filtered.map((member) => {
+        const initial = escapeHtml((member.name || 'M').trim().charAt(0).toUpperCase());
+        const statusKey = member.status_label.toLowerCase();
+        return `<tr>
+          <td><div class="member-cell"><span class="member-avatar">${initial}</span><div><div class="member-name">${escapeHtml(member.name)}</div><div class="member-email">${escapeHtml(member.email || 'Referral member')}</div></div></div></td>
+          <td><span class="level-tag">Level ${member.level}</span></td>
+          <td><span class="tier-tag">${Number(member.active_machine_count || 0).toLocaleString()} active</span></td>
+          <td><span class="status-tag ${statusClass(statusKey)}"><i class="fa-solid fa-circle" style="font-size:.42rem"></i>${escapeHtml(member.status_label)}</span></td>
+          <td>${dateText(member.joined_at)}</td>
+          <td><span class="amount-positive">${money(member.total_deposits)}</span><div class="member-email">${Number(member.deposit_count || 0)} completed</div></td>
+        </tr>`;
+      }).join('');
     }
 
-    // Commissions list
-    const commBox = document.getElementById('comm-list');
-    if (!(commR.data || []).length) {
-      commBox.innerHTML = '<div class="empty-state"><i class="fa-solid fa-coins"></i>No commissions yet. Earn when your team deposits.</div>';
-    } else {
-      commBox.innerHTML = commR.data.map(c => `
-        <div class="list-row">
-          <div><b class="mint">+₦${Number(c.commission_amount).toLocaleString()}</b>
-          <div class="muted" style="font-size:.72rem;">${new Date(c.created_at).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></div>
-          <span class="badge badge-mint">Level ${c.commission_level || 1} · paid</span>
-        </div>`).join('');
+    function renderDeposits() {
+      if (!payload) return;
+      const statusFilter = document.getElementById('deposit-status-filter').value;
+      const rows = payload.deposits.filter((deposit) => statusFilter === 'all' || deposit.status === statusFilter);
+      const tbody = document.getElementById('deposits-tbody');
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="table-empty"><i class="fa-solid fa-receipt"></i>${payload.deposits.length ? 'No deposits match this status.' : 'No referral deposits to show yet.'}</div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map((deposit) => `<tr>
+        <td><div class="member-name">${escapeHtml(deposit.member_name)}</div></td>
+        <td><span class="level-tag">Level ${deposit.level}</span></td>
+        <td class="amount-positive">${money(deposit.amount)}</td>
+        <td><span class="status-tag ${statusClass(deposit.status)}">${escapeHtml(deposit.status)}</span></td>
+        <td>${dateText(deposit.created_at)}</td>
+      </tr>`).join('');
     }
+
+    function renderCommissions() {
+      const list = document.getElementById('commissions-list');
+      if (!payload.commissions.length) {
+        list.innerHTML = '<div class="card table-empty" style="grid-column:1/-1"><i class="fa-solid fa-coins"></i>No referral rewards have been paid yet.</div>';
+        return;
+      }
+      list.innerHTML = payload.commissions.slice(0, 9).map((commission) => `<article class="card commission-item"><div><strong>+${money(commission.amount)}</strong><div><span>Level ${commission.level} · ${dateText(commission.created_at)}</span></div></div><span class="status-tag status-completed">Paid</span></article>`).join('');
+    }
+
+    function renderStats() {
+      const { stats } = payload;
+      document.getElementById('stat-team').textContent = Number(stats.team_members).toLocaleString();
+      document.getElementById('stat-active').textContent = Number(stats.active_referrals).toLocaleString();
+      document.getElementById('stat-inactive').textContent = Number(stats.inactive_referrals).toLocaleString();
+      document.getElementById('stat-deposits').textContent = money(stats.team_deposits);
+      document.getElementById('stat-commissions').textContent = money(stats.commissions_earned);
+      payload.level_summary.forEach((summary) => {
+        document.getElementById(`level-${summary.level}-count`).textContent = `${summary.members.toLocaleString()} members · ${summary.active} active`;
+        document.getElementById(`level-${summary.level}-meta`).textContent = `${money(summary.deposits)} completed deposits`;
+      });
+      document.getElementById('rate-strip').innerHTML = [1, 2, 3].map((level) => `<span class="rate-pill">Level ${level} <b>${escapeHtml(payload.rates[level])}%</b></span>`).join('');
+    }
+
+    try {
+      const response = await fetch('/api/team', { headers: { Authorization: `Bearer ${await token()}` } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || `Could not load team data (${response.status})`);
+      payload = data;
+      const code = data.referral_code || '—';
+      inviteUrl = `${location.origin}/register.html?ref=${encodeURIComponent(code)}`;
+      document.getElementById('ref-code').textContent = code;
+      renderStats();
+      renderMembers();
+      renderDeposits();
+      renderCommissions();
+      if (data.truncated.members) {
+        const notice = document.getElementById('member-notice');
+        notice.textContent = 'The referral list reached the display limit. Contact support if you need a full export.';
+        notice.classList.add('visible');
+      }
+      if (data.truncated.deposits) {
+        const notice = document.getElementById('deposit-notice');
+        notice.textContent = 'Showing the latest 300 deposit records; team deposit totals include up to the latest 10,000 records.';
+        notice.classList.add('visible');
+      }
+    } catch (error) {
+      console.error('[TEAM] Load failed:', error);
+      document.getElementById('members-tbody').innerHTML = `<tr><td colspan="6"><div class="table-empty"><i class="fa-solid fa-triangle-exclamation"></i>${escapeHtml(error.message)}</div></td></tr>`;
+      document.getElementById('deposits-tbody').innerHTML = '<tr><td colspan="5"><div class="table-empty">Team deposit activity could not be loaded.</div></td></tr>';
+    }
+
+    document.getElementById('member-search').addEventListener('input', renderMembers);
+    document.getElementById('member-status-filter').addEventListener('change', renderMembers);
+    document.getElementById('member-level-filter').addEventListener('change', renderMembers);
+    document.getElementById('deposit-status-filter').addEventListener('change', renderDeposits);
+    document.getElementById('copy-link-btn').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(inviteUrl);
+        showToast('Invite link copied!', 'success');
+      } catch {
+        showToast('Could not copy invite link on this device.', 'error');
+      }
+    });
+    document.getElementById('share-wa-btn').addEventListener('click', () => {
+      const message = encodeURIComponent(`Join me on 3M. Use my referral code ${document.getElementById('ref-code').textContent}: ${inviteUrl}`);
+      window.open(`https://wa.me/?text=${message}`, '_blank', 'noopener');
+    });
+    document.getElementById('share-tg-btn').addEventListener('click', () => {
+      const message = encodeURIComponent(`Join me on 3M. Use my referral code ${document.getElementById('ref-code').textContent}.`);
+      window.open(`https://t.me/share/url?url=${encodeURIComponent(inviteUrl)}&text=${message}`, '_blank', 'noopener');
+    });
   </script>
 </body>
 </html>
