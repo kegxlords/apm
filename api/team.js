@@ -79,7 +79,6 @@ export default async function handler(req, res) {
       });
     }
 
-    const deposits = [];
     let depositRowsTruncated = false;
 
     for (let offset = 0; memberIds.length && offset < MAX_DEPOSIT_ROWS; offset += PAGE_SIZE) {
@@ -98,7 +97,6 @@ export default async function handler(req, res) {
           member.deposit_count += 1;
         }
       }
-      deposits.push(...batch);
       if (batch.length < PAGE_SIZE) break;
       if (offset + PAGE_SIZE >= MAX_DEPOSIT_ROWS) depositRowsTruncated = true;
     }
@@ -130,15 +128,6 @@ export default async function handler(req, res) {
       if (key === 'referral_level_3_percentage') rates[3] = value;
     });
 
-    const memberNameById = new Map(members.map((member) => [member.id, member.name]));
-    const depositList = deposits.slice(0, 300).map((row) => ({
-      id: row.id,
-      member_name: memberNameById.get(row.user_id) || 'Team member',
-      level: memberById.get(row.user_id)?.level || 1,
-      amount: money(row.amount),
-      status: row.status,
-      created_at: row.created_at
-    }));
     const levelSummary = [1, 2, 3].map((level) => {
       const atLevel = members.filter((member) => member.level === level);
       return {
@@ -155,7 +144,6 @@ export default async function handler(req, res) {
       referral_code: ownProfile.referral_code || null,
       rates,
       members,
-      deposits: depositList,
       level_summary: levelSummary,
       stats: {
         team_members: members.length,
