@@ -131,15 +131,107 @@ async function buyPackage(req, userId, res) {
 
 async function processPayouts(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // The existing cPanel cron calls this endpoint. Daily machines are settled first
+  // so the maturity RPC does not pay the 50K package a second time.
+  const daily = await processDailyMachinePayouts();
   const { data, error } = await supabaseAdmin.rpc('settle_matured_mining_investments');
   if (error) throw error;
   const result = Array.isArray(data) ? data[0] : data;
   return res.json({
     ok: true,
+    daily_machine_users: daily.users,
+    daily_machine_payouts: daily.payouts,
+    daily_machine_amount: money(daily.amount),
     processed_investments: result?.processed_investments || 0,
     processed_payouts: result?.processed_investments || 0,
     returned_capital_amount: money(result?.capital_returned_amount || 0),
     profit_paid_amount: money(result?.profit_paid_amount || 0),
     processed_at: new Date().toISOString()
   });
+}
+
+// The 50K machine is the only package with automatic income.
+// Payout #1 is due 24 hours after purchase; each later payout is due every 24 hours.
+// Its profit is paid daily, and the locked capital is returned on the 365th payout.
+async function processDailyMachinePayouts() {
+  const now = Date.now();
+  const dayMs = 86400000;
+  const { data: machines, error } = await supabaseAdmin
+    .from('wealth_investments')
+    .select('id, user_id, amount, created_at, purchased_at, total_earned, status, wealth_packages!inner(name, investment_amount, daily_return, duration_days)')
+    .eq('status', 'active')
+    .eq('wealth_packages.investment_amount', 50000)
+    .eq('wealth_packages.daily_return', 1500)
+    .eq('wealth_packages.duration_days', 365);
+  if (error) throw error;
+
+  let users = 0;
+  let payouts = 0;
+  let amount = 0;
+  for (const machine of machines || []) {
+    const pkg = machine.wealth_packages;
+    const purchasedAt = new Date(machine.purchased_at || machine.created_at).getTime();
+    if (!Number.isFinite(purchasedAt)) continue;
+    const dueCount = Math.min(365, Math.floor((now - purchasedAt) / dayMs));
+    if (dueCount < 1) continue;
+
+    const refs = Array.from({ length: dueCount }, (_, index) => `MACHINE_DAILY_${machine.id}_${index + 1}`);
+    const { data: existing, error: existingError } = await supabaseAdmin
+      .from('transactions').select('reference').eq('user_id', machine.user_id).in('reference', refs);
+    if (existingError) throw existingError;
+    const existingRefs = new Set((existing || []).map((row) => row.reference));
+    const pending = refs.map((reference, index) => existingRefs.has(reference) ? null : index + 1).filter(Boolean);
+    if (!pending.length) continue;
+
+    const profit = Number(pkg.daily_return) * pending.length;
+    const finalPayout = dueCount >= 365;
+    const capital = finalPayout ? Number(machine.amount || 50000) : 0;
+    const totalCredit = profit + capital;
+    const { data: wallet, error: walletError } = await supabaseAdmin
+      .from('wallets').select('balance').eq('user_id', machine.user_id).single();
+    if (walletError) throw walletError;
+    const newBalance = Number(wallet?.balance || 0) + totalCredit;
+    const { error: balanceError } = await supabaseAdmin.from('wallets').upsert(
+      { user_id: machine.user_id, balance: newBalance, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    );
+    if (balanceError) throw balanceError;
+
+    const rows = pending.map((index) => ({
+      user_id: machine.user_id,
+      type: 'mining_machine_profit',
+      amount: Number(pkg.daily_return),
+      status: 'approved',
+      reference: `MACHINE_DAILY_${machine.id}_${index}`,
+      description: `24-hour machine income: ${pkg.name}`
+    }));
+    if (capital > 0) rows.push({
+      user_id: machine.user_id,
+      type: 'mining_machine_capital_return',
+      amount: capital,
+      status: 'approved',
+      reference: `MACHINE_CAPITAL_${machine.id}`,
+      description: `Capital returned at maturity: ${pkg.name}`
+    });
+    const { error: transactionError } = await supabaseAdmin.from('transactions').insert(rows);
+    if (transactionError) throw transactionError;
+
+    const updates = {
+      total_earned: Number(machine.total_earned || 0) + totalCredit,
+      next_payout_at: finalPayout ? null : new Date(purchasedAt + (dueCount + 1) * dayMs).toISOString()
+    };
+    if (finalPayout) {
+      updates.status = 'completed';
+      updates.maturity_paid_at = new Date().toISOString();
+    }
+    const { error: updateError } = await supabaseAdmin.from('wealth_investments')
+      .update(updates).eq('id', machine.id).eq('status', 'active');
+    if (updateError) throw updateError;
+
+    users += 1;
+    payouts += pending.length;
+    amount += totalCredit;
+  }
+  return { users, payouts, amount };
 }
