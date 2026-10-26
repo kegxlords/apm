@@ -24,7 +24,7 @@
   <div id="header-container"></div>
   <div class="page">
     <h1 class="page-title">My Team</h1>
-    <p class="page-sub">Invite friends. Earn <span class="gold" id="comm-pct">10</span>% on every deposit they make.</p>
+    <p class="page-sub">Earn on approved deposits from direct referrals and the next two team levels: <span class="gold" id="comm-rates">Level 1: 10% · Level 2: 2% · Level 3: 1%</span>.</p>
 
     <div class="ref-card">
       <div class="ref-label">Your Referral Code</div>
@@ -57,15 +57,16 @@
 
     const [profileR, settingsR, teamR, commR] = await Promise.all([
       supabase.from('profiles').select('referral_code').eq('id', user.id).single(),
-      supabase.from('site_settings').select('value').eq('key', 'referral_commission_percentage').single(),
+      supabase.from('site_settings').select('key, value').in('key', ['referral_commission_percentage', 'referral_level_2_percentage', 'referral_level_3_percentage']),
       supabase.from('profiles').select('full_name, email, tier, created_at').eq('referred_by', user.id).order('created_at', { ascending: false }),
-      supabase.from('referral_commissions').select('commission_amount, created_at').eq('referrer_id', user.id).order('created_at', { ascending: false }).limit(30)
+      supabase.from('referral_commissions').select('commission_amount, commission_level, created_at').eq('referrer_id', user.id).order('created_at', { ascending: false }).limit(30)
     ]);
 
     const code = profileR.data?.referral_code || '—';
     const inviteLink = `${location.origin}/register.html?ref=${code}`;
     document.getElementById('ref-code').textContent = code;
-    document.getElementById('comm-pct').textContent = settingsR.data?.value || '10';
+    const referralSettings = Object.fromEntries((settingsR.data || []).map(row => [row.key, row.value]));
+    document.getElementById('comm-rates').textContent = `Level 1: ${referralSettings.referral_commission_percentage ?? '10'}% · Level 2: ${referralSettings.referral_level_2_percentage ?? '2'}% · Level 3: ${referralSettings.referral_level_3_percentage ?? '1'}%`;
 
     window.copyLink = () => { navigator.clipboard.writeText(inviteLink); showToast('Invite link copied!', 'success'); };
     window.shareWhatsApp = () => {
@@ -111,7 +112,7 @@
         <div class="list-row">
           <div><b class="mint">+₦${Number(c.commission_amount).toLocaleString()}</b>
           <div class="muted" style="font-size:.72rem;">${new Date(c.created_at).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div></div>
-          <span class="badge badge-mint">paid</span>
+          <span class="badge badge-mint">Level ${c.commission_level || 1} · paid</span>
         </div>`).join('');
     }
   </script>
