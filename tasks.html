@@ -28,7 +28,7 @@
 <body>
   <div id="header-container"></div>
   <main class="page">
-    <section class="hero-card rented-hero"><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / ACTIVE EQUIPMENT</span><h1>Rented Machines</h1><p>Standard machines pay at maturity. The ₦50,000 machine credits ₦1,500 every 24 hours and returns capital after 365 payouts.</p><a href="/membership.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-industry"></i> Rent another machine</a></section>
+    <section class="hero-card rented-hero"><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / ACTIVE EQUIPMENT</span><h1>Rented Machines</h1><p>Standard machines pay at maturity. The ₦50,000 machine credits ₦1,500 every 24 hours for 365 payouts; the purchase capital is not returned.</p><a href="/membership.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-industry"></i> Rent another machine</a></section>
     <div class="section-title"><i class="fa-solid fa-briefcase"></i> My rented packages</div>
     <div id="rented-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading rented machines...</div></div>
   </main>
@@ -71,7 +71,7 @@
             : machine.status === 'completed'
               ? 'Machine matured • payout pending'
               : dailyMachine
-                ? `₦${Number(machine.daily_return).toLocaleString('en-NG')} credits every 24 hours; capital returns after 365 payouts`
+                ? `₦${Number(machine.daily_return).toLocaleString('en-NG')} credits every 24 hours for 365 payouts; capital is not returned`
                 : 'Capital and profit locked until maturity';
           card.append(capitalStatus);
         });
