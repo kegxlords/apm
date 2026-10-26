@@ -146,7 +146,9 @@
       <div class="card">
         <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-percent mint"></i> Commissions & Fees</h3>
         <div class="grid-form">
-          <div class="form-group"><label class="form-label">Referral Commission %</label><input type="number" class="input" id="set-ref-pct"></div>
+          <div class="form-group"><label class="form-label">Referral Level 1 Commission %</label><input type="number" class="input" id="set-ref-pct" min="0" step="0.01"></div>
+          <div class="form-group"><label class="form-label">Referral Level 2 Commission %</label><input type="number" class="input" id="set-ref-l2-pct" min="0" step="0.01"></div>
+          <div class="form-group"><label class="form-label">Referral Level 3 Commission %</label><input type="number" class="input" id="set-ref-l3-pct" min="0" step="0.01"></div>
           <div class="form-group"><label class="form-label">Withdrawal Fee %</label><input type="number" class="input" id="set-wd-fee"></div>
           <div class="form-group"><label class="form-label">Min Deposit ₦</label><input type="number" class="input" id="set-min-dep"></div>
           <div class="form-group"><label class="form-label">Min Withdrawal ₦</label><input type="number" class="input" id="set-min-wd"></div>
@@ -662,6 +664,8 @@
     async function loadSettings() {
       const { settings: s } = await api('get-settings');
       document.getElementById('set-ref-pct').value = s.referral_commission_percentage ?? '10';
+      document.getElementById('set-ref-l2-pct').value = s.referral_level_2_percentage ?? '2';
+      document.getElementById('set-ref-l3-pct').value = s.referral_level_3_percentage ?? '1';
       document.getElementById('set-wd-fee').value = s.withdrawal_fee_percentage ?? '0';
       document.getElementById('set-min-dep').value = s.min_deposit ?? '6000';
       document.getElementById('set-min-wd').value = s.min_withdrawal ?? '1000';
@@ -674,7 +678,7 @@
     }
     window.saveSettingsGroup = async (group) => {
       const map = {
-        fees: { referral_commission_percentage: document.getElementById('set-ref-pct').value, withdrawal_fee_percentage: document.getElementById('set-wd-fee').value, min_deposit: document.getElementById('set-min-dep').value, min_withdrawal: document.getElementById('set-min-wd').value },
+        fees: { referral_commission_percentage: document.getElementById('set-ref-pct').value, referral_level_2_percentage: document.getElementById('set-ref-l2-pct').value, referral_level_3_percentage: document.getElementById('set-ref-l3-pct').value, withdrawal_fee_percentage: document.getElementById('set-wd-fee').value, min_deposit: document.getElementById('set-min-dep').value, min_withdrawal: document.getElementById('set-min-wd').value },
         bank: { deposit_bank_name: document.getElementById('set-bank').value, deposit_account_number: document.getElementById('set-acct').value, deposit_account_name: document.getElementById('set-acct-name').value },
         links: { telegram_link: document.getElementById('set-tg').value, whatsapp_link: document.getElementById('set-wa').value, support_link: document.getElementById('set-support').value }
       };
