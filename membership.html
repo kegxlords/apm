@@ -37,7 +37,7 @@
     <section class="hero-card machine-hero">
       <span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / EQUIPMENT MARKET</span>
       <h1>Mining Machines</h1>
-      <p>Your capital and profit are paid together to your wallet when the package expires; neither is paid out before maturity. The 2-, 5-, and 10-day packages can be bought once each; other packages can be bought twice each.</p>
+      <p>Standard machines pay capital and profit together at maturity. The ₦50,000 machine is different: it pays ₦1,500 automatically every 24 hours for 365 days, then returns the locked capital.</p>
       <a href="/tasks.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-briefcase"></i> View Rented Machines</a>
     </section>
     <div class="package-tabs" role="tablist" aria-label="Package sections">
@@ -100,6 +100,7 @@
         const status = pkg.coming_soon ? 'Coming Soon' : pkg.sold_out ? 'Sold out' : pkg.expired ? 'Offer expired' : limitReached ? 'Limit reached' : pkg.is_available ? 'Ready to purchase' : 'Unavailable';
         const badge = pkg.coming_soon ? 'badge-amber' : disabled ? 'badge-gray' : limited ? 'badge-gold' : 'badge-mint';
         const buttonLabel = pkg.coming_soon ? 'Coming Soon' : pkg.sold_out ? 'Sold out' : limitReached ? 'Limit reached' : pkg.is_available ? '<i class="fa-solid fa-cart-shopping"></i> Buy machine' : 'Unavailable';
+        const dailyMachine = Number(pkg.investment_amount) === 50000 && Number(pkg.daily_return) === 1500 && Number(pkg.duration_days) === 365;
         const expected = Number(pkg.profit_at_maturity || 0);
         const buyerLimit = limited ? `<div>Limited offer: <b>${Number(pkg.users_remaining || 0).toLocaleString('en-NG')}</b> of <b>${Number(pkg.max_users || 0).toLocaleString('en-NG')}</b> user slots remaining</div>` : '';
         const opens = formatAvailability(pkg.available_from);
@@ -108,7 +109,7 @@
         const schedule = `${buyerLimit}${timeWindow}`;
         const groupName = limited ? 'Limited package' : 'General package';
         const packagePurchaseCount = !limited ? `${pkg.purchases_remaining} purchase${pkg.purchases_remaining === 1 ? '' : 's'} remaining` : '';
-        return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">${groupName} • Capital and profit paid only at maturity</div>${schedule ? `<div class="package-schedule">${schedule}</div>` : ''}</div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${money(pkg.total_return)}</b><span>Total payout</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">Profit at maturity: <b class="mint">${money(expected)}</b>${packagePurchaseCount ? `<br>${packagePurchaseCount}` : ''}</span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
+        return `<article class="card package-card"><div class="package-top"><div><div class="package-name">${pkg.name}</div><div class="package-sub">${groupName} • ${dailyMachine ? '₦1,500 income credited every 24 hours' : 'Capital and profit paid only at maturity'}</div>${schedule ? `<div class="package-schedule">${schedule}</div>` : ''}</div><span class="badge ${badge}">${status}</span></div><div class="package-grid"><div class="package-cell"><b>${money(pkg.investment_amount)}</b><span>Capital locked</span></div><div class="package-cell gold"><b>${dailyMachine ? money(pkg.daily_return) : money(pkg.total_return)}</b><span>${dailyMachine ? 'Daily income' : 'Total payout'}</span></div><div class="package-cell"><b>${pkg.duration_days}</b><span>Days</span></div></div><div class="package-foot"><span class="package-limit">${dailyMachine ? 'Profit over 365 days: ' : 'Profit at maturity: '}<b class="mint">${money(expected)}</b>${packagePurchaseCount ? `<br>${packagePurchaseCount}` : ''}</span><button class="btn btn-primary btn-sm" ${disabled ? 'disabled' : ''} data-id="${pkg.id}">${buttonLabel}</button></div></article>`;
       }).join('');
       target.querySelectorAll('button[data-id]').forEach((button) => button.addEventListener('click', () => buy(button)));
     }
@@ -126,12 +127,13 @@
       }
     }
     async function buy(button) {
-      if (!confirm('Buy this Mining Machine? The full payout, including capital and profit, will be credited only when the package reaches maturity.')) return;
+      const dailyMachine = button.closest('.package-card')?.querySelector('.package-sub')?.textContent.includes('every 24 hours');
+      if (!confirm(dailyMachine ? 'Buy this ₦50,000 Mining Machine? ₦1,500 will be credited automatically every 24 hours for 365 days, then your capital will be returned.' : 'Buy this Mining Machine? The full payout, including capital and profit, will be credited only when the package reaches maturity.')) return;
       const original = button.innerHTML; button.disabled = true; button.innerHTML = '<i class="fa-solid fa-circle-notch spinner"></i>';
       try {
         const res = await fetch('/api/mining-machines?action=buyPackage', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` }, body: JSON.stringify({ package_id: button.dataset.id }) });
         const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        showToast('Mining Machine rented. Capital and profit will be paid at maturity.', 'success'); window.APMShell?.refresh(); load();
+        showToast(dailyMachine ? 'Mining Machine rented. ₦1,500 income starts after 24 hours.' : 'Mining Machine rented. Capital and profit will be paid at maturity.', 'success'); window.APMShell?.refresh(); load();
       } catch (error) { showToast(error.message, 'error'); button.disabled = false; button.innerHTML = original; }
     }
     load();
