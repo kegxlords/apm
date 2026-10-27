@@ -30,8 +30,9 @@
   <div class="page">
     <h1 class="page-title">Fund Operations</h1>
     <p class="page-sub">Transfer to our account, then submit your details for verification.</p>
+    <div class="card" id="gateway-note" style="display:none;margin-bottom:16px;border-color:var(--primary);">Choose an amount and continue to MGM Pay's secure checkout. Your wallet is credited only after the payment is confirmed.</div>
 
-    <div class="bank-card">
+    <div class="bank-card" id="manual-bank-card">
       <h3><i class="fa-solid fa-building-columns"></i> Company Account</h3>
       <div class="bank-row"><span>Bank Name</span><b id="bank-name">Loading…</b></div>
       <div class="bank-row"><span>Account Number</span><span><b id="acct-number">Loading…</b><button class="copy-mini" onclick="copyAcct()" disabled><i class="fa-regular fa-copy"></i> Copy</button></span></div>
@@ -51,11 +52,11 @@
       <input type="number" id="custom-amount" class="input" placeholder="Minimum ₦6,000" min="6000">
     </div>
 
-    <div class="form-group">
+    <div class="form-group" id="sender-group">
       <label class="form-label">Sender Name (as shown in your bank app)</label>
       <input type="text" id="sender-name" class="input" placeholder="e.g. John Doe" required>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="payment-method-group">
       <label class="form-label">Payment Method</label>
       <select id="payment-method" class="select">
         <option value="bank_transfer">Bank Transfer</option>
@@ -63,7 +64,7 @@
         <option value="palmpay">PalmPay</option>
       </select>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="proof-ref-group">
       <label class="form-label">Transfer Reference / Receipt ID (optional)</label>
       <input type="text" id="proof-ref" class="input" placeholder="e.g. TRF/2026/000123">
     </div>
@@ -86,6 +87,7 @@
 
     let selected = null;
     let minDeposit = 6000;
+    let depositMode = 'manual';
     window.pickAmount = (amt, btn) => {
       selected = amt;
       document.getElementById('custom-amount').value = '';
@@ -108,13 +110,21 @@
       if (!response.ok) throw new Error(details.error || `HTTP ${response.status}`);
 
       minDeposit = Number(details.min_deposit || 6000);
+      depositMode = details.deposit_mode === 'gateway' ? 'gateway' : 'manual';
       document.getElementById('custom-amount').min = String(minDeposit);
       document.getElementById('custom-amount').placeholder = `Minimum ₦${minDeposit.toLocaleString()}`;
+      if (depositMode === 'gateway') {
+        document.querySelector('.page-sub').textContent = 'Choose your deposit amount and pay securely through MGM Pay.';
+        document.getElementById('manual-bank-card').style.display = 'none';
+        document.getElementById('gateway-note').style.display = 'block';
+        ['sender-group', 'payment-method-group', 'proof-ref-group'].forEach(id => document.getElementById(id).style.display = 'none');
+        document.getElementById('submit-btn').innerHTML = '<i class="fa-solid fa-lock"></i> Continue to Secure Payment';
+      }
       document.getElementById('bank-name').textContent = details.bank_name || 'Not configured';
       document.getElementById('acct-number').textContent = details.account_number || 'Not configured';
       document.getElementById('acct-name').textContent = details.account_name || 'Not configured';
       document.querySelector('.copy-mini').disabled = !details.account_number;
-      if (!details.configured) {
+      if (depositMode === 'manual' && !details.configured) {
         const alert = document.getElementById('bank-details-alert');
         alert.textContent = 'Deposit bank details are incomplete. Please contact support while the admin updates them.';
         alert.style.display = 'block';
@@ -133,7 +143,7 @@
       if (!amount) return showToast('Select or enter an amount', 'error');
       if (amount < minDeposit) return showToast(`Minimum deposit is ₦${minDeposit.toLocaleString()}`, 'error');
       const sender = document.getElementById('sender-name').value.trim();
-      if (!sender) return showToast('Enter the sender name', 'error');
+      if (depositMode === 'manual' && !sender) return showToast('Enter the sender name', 'error');
 
       const btn = document.getElementById('submit-btn');
       const original = btn.innerHTML;
@@ -146,7 +156,7 @@
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
           body: JSON.stringify({
             amount,
-            sender_name: sender,
+            sender_name: sender || undefined,
             payment_method: document.getElementById('payment-method').value,
             proof_ref: document.getElementById('proof-ref').value.trim() || null
           })
@@ -157,8 +167,17 @@
         catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-        showToast('Deposit submitted! We\'ll verify it shortly.', 'gold');
-        setTimeout(() => location.href = '/dashboard.html', 1200);
+        if (data.redirect_url) {
+          showToast('Opening MGM Pay secure checkout…', 'success');
+          location.assign(data.redirect_url);
+        } else if (data.pending_confirmation) {
+          showToast(data.message || 'Payment order is awaiting gateway confirmation. Do not pay twice.', 'gold');
+          btn.disabled = false;
+          btn.innerHTML = original;
+        } else {
+          showToast('Deposit submitted! We\'ll verify it shortly.', 'gold');
+          setTimeout(() => location.href = '/dashboard.html', 1200);
+        }
       } catch (err) {
         console.error('[DEPOSIT] Submit failed:', err);
         showToast(err.message, 'error');
@@ -177,6 +196,7 @@
         <div class="list-row">
           <div><b>₦${Number(d.amount).toLocaleString()}</b><div class="muted" style="font-size:.72rem;">${new Date(d.created_at).toLocaleDateString()}</div></div>
           <span class="badge ${d.status === 'completed' ? 'badge-mint' : d.status === 'pending' ? 'badge-amber' : 'badge-red'}">${d.status}</span>
+          ${d.gateway_provider === 'mgm_pay' && d.gateway_status ? `<span class="muted" style="font-size:.68rem;margin-left:6px;">${d.gateway_status}</span>` : ''}
         </div>`).join('');
     }
   </script>

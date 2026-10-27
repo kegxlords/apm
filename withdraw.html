@@ -24,7 +24,7 @@
   <div id="header-container"></div>
   <div class="page">
     <h1 class="page-title">Withdraw Rewards</h1>
-    <p class="page-sub">Request a payout to your bank account.</p>
+      <p class="page-sub">Request a payout to your bank account.</p>
 
     <div class="hero-card">
       <div class="hero-label">Available Balance</div>
@@ -32,6 +32,7 @@
     </div>
 
     <div id="elig-alert"></div>
+    <div id="gateway-mode-note" class="card" style="display:none;margin-bottom:16px;border-color:var(--primary);font-size:.86rem;"></div>
 
     <div class="section-title"><i class="fa-solid fa-naira-sign"></i> Amount</div>
     <div class="amount-grid" id="amount-grid">
@@ -54,12 +55,16 @@
       <label class="form-label">Bank Name</label>
       <select id="bank-name" class="select">
         <option value="">Select your bank</option>
-        <option>Access Bank</option><option>GTBank</option><option>Zenith Bank</option>
-        <option>UBA</option><option>First Bank</option><option>Fidelity Bank</option>
-        <option>Union Bank</option><option>Sterling Bank</option><option>Wema Bank</option>
-        <option>Stanbic IBTC</option><option>Ecobank</option><option>Polaris Bank</option>
-        <option>Opay</option><option>PalmPay</option><option>Kuda</option>
-        <option>Moniepoint</option><option>VFD</option>
+        <option value="20009">Opay</option><option value="20012">ASO Savings and Loans</option><option value="20013">Access Bank</option>
+        <option value="20026">Ecobank Nigeria</option><option value="20036">Fidelity Bank</option><option value="20039">First Bank of Nigeria</option>
+        <option value="20040">First City Monument Bank</option><option value="20043">Globus Bank</option><option value="20045">Guaranty Trust Bank</option>
+        <option value="20047">Heritage Bank</option><option value="20051">Jaiz Bank</option><option value="20053">Keystone Bank</option>
+        <option value="20055">Kuda Bank</option><option value="20063">One Finance</option><option value="20065">PalmPay</option>
+        <option value="20066">Parkway - ReadyCash</option><option value="20068">Polaris Bank</option><option value="20069">Providus Bank</option>
+        <option value="20073">Stanbic IBTC Bank</option><option value="20074">Standard Chartered Bank</option><option value="20075">Sterling Bank</option>
+        <option value="20076">TAJ Bank</option><option value="20079">Titan Bank</option><option value="20080">Union Bank of Nigeria</option>
+        <option value="20081">United Bank For Africa</option><option value="20082">Unity Bank</option><option value="20083">VFD Microfinance Bank</option>
+        <option value="20086">Zenith Bank</option><option value="20087">Moniepoint Microfinance Bank</option>
       </select>
     </div>
     <div class="form-group">
@@ -83,7 +88,7 @@
         <li>Processing fee: <b class="mint" id="fee-pct-rule">0</b>%</li>
         <li>Requires at least <b class="gold">one Mining Machine purchase</b>; expired machines still qualify</li>
         <li>Maximum <b>1 request per day</b></li>
-        <li>Processed manually by our team within 24 hours</li>
+        <li id="processing-rule">Processed manually by our team within 24 hours</li>
         <li>Rejected requests are auto-refunded instantly</li>
       </ul>
     </div>
@@ -97,7 +102,7 @@
     const user = await requireAuth();
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
 
-    let selected = null, feePct = 0, minAmt = 0, canWithdraw = false, balance = 0;
+    let selected = null, feePct = 0, minAmt = 0, canWithdraw = false, balance = 0, payoutMode = 'manual', reviewRequired = true;
 
     // ===== Load balance =====
     const { data: wallet } = await supabase.from('wallets').select('balance').eq('user_id', user.id).single();
@@ -116,11 +121,23 @@
       canWithdraw = elig.can_withdraw_now;
       feePct = Number(elig.fee || 0);
       minAmt = Number(elig.min || 0);
+      payoutMode = elig.payout_mode === 'gateway' ? 'gateway' : 'manual';
+      reviewRequired = elig.review_required !== false;
 
       document.querySelectorAll('.min-label').forEach(el => el.textContent = `₦${minAmt.toLocaleString()}`);
       document.getElementById('custom-amount').placeholder = `Minimum ₦${minAmt.toLocaleString()}`;
       document.getElementById('fee-pct').textContent = feePct;
       document.getElementById('fee-pct-rule').textContent = feePct;
+      if (payoutMode === 'gateway') {
+        document.querySelector('.page-sub').textContent = 'Request a bank payout through the secure MGM Pay gateway.';
+        document.getElementById('processing-rule').textContent = reviewRequired
+          ? 'Gateway payouts are sent after admin review; final status depends on MGM Pay confirmation.'
+          : 'Gateway payouts are submitted automatically; final status depends on MGM Pay confirmation.';
+        document.getElementById('gateway-mode-note').textContent = reviewRequired
+          ? 'Gateway mode is on: after you submit, your request is reserved and sent to MGM Pay only after admin review.'
+          : 'Gateway mode is on: after you submit, your request is automatically sent to MGM Pay. Your wallet is updated only after the provider confirms the payout.';
+        document.getElementById('gateway-mode-note').style.display = 'block';
+      }
 
       if (!canWithdraw) {
         document.getElementById('elig-alert').innerHTML = `
@@ -169,10 +186,12 @@
       if (!amount || amount < minAmt) return showToast(`Minimum withdrawal is ₦${minAmt.toLocaleString()}`, 'error');
       if (amount > balance) return showToast('Insufficient balance', 'error');
 
-      const bank = document.getElementById('bank-name').value;
+      const bankSelect = document.getElementById('bank-name');
+      const bank = bankSelect.options[bankSelect.selectedIndex]?.text || '';
+      const bankCode = bankSelect.value;
       const acct = document.getElementById('account-number').value.trim();
       const acctName = document.getElementById('account-name').value.trim();
-      if (!bank || !acct || !acctName) return showToast('Fill in all bank details', 'error');
+      if (!bankCode || !acct || !acctName) return showToast('Fill in all bank details', 'error');
       if (!/^\d{10}$/.test(acct)) return showToast('Account number must be 10 digits', 'error');
 
       const btn = document.getElementById('submit-btn');
@@ -184,7 +203,7 @@
         const res = await fetch('/api/finance?action=requestWithdrawal', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-          body: JSON.stringify({ amount, bank_name: bank, account_number: acct, account_name: acctName })
+          body: JSON.stringify({ amount, bank_name: bank, bank_code: bankCode, account_number: acct, account_name: acctName })
         });
         const text = await res.text();
         let data;
@@ -192,7 +211,10 @@
         catch { throw new Error(`Server error (HTTP ${res.status}) — check Vercel logs for /api/finance`); }
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-        showToast('Withdrawal requested! Our team will process it shortly.', 'gold');
+        showToast(data.pending_confirmation ? data.message : data.requires_review
+          ? 'Withdrawal requested. It will be sent to MGM Pay after admin review.'
+          : data.gateway_sent ? 'Withdrawal submitted to MGM Pay; waiting for final confirmation.'
+          : 'Withdrawal requested! Our team will process it shortly.', data.pending_confirmation ? 'gold' : 'success');
         setTimeout(() => location.href = '/dashboard.html', 1200);
       } catch (err) {
         console.error('[WITHDRAW] Submit failed:', err);
