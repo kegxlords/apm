@@ -20,6 +20,7 @@
 
   <nav class="admin-tabs">
     <button class="admin-tab active" onclick="showSection('dashboard', this)"><i class="fa-solid fa-chart-line"></i>Dashboard</button>
+    <button class="admin-tab" onclick="showSection('gateway', this)"><i class="fa-solid fa-building-columns"></i>Gateway</button>
     <button class="admin-tab" onclick="showSection('deposits', this)"><i class="fa-solid fa-arrow-down"></i>Deposits</button>
     <button class="admin-tab" onclick="showSection('withdrawals', this)"><i class="fa-solid fa-arrow-up"></i>Withdrawals</button>
     <button class="admin-tab" onclick="showSection('users', this)"><i class="fa-solid fa-users"></i>Users</button>
@@ -42,6 +43,36 @@
         <div class="stat-card"><div class="stat-value mint" id="s-tasks">0</div><div class="stat-label">Claims Today</div></div>
         <div class="stat-card"><div class="stat-value gold" id="s-comm">₦0</div><div class="stat-label">Commissions</div></div>
       </div>
+    </section>
+
+    <!-- MGM GATEWAY -->
+    <section id="gateway" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-building-columns"></i>MGM Pay Gateway</h2>
+      <div class="notice mint"><i class="fa-solid fa-shield-halved"></i>Gateway balance and admin payouts are fetched server-side. Payout submission is not final until MGM Pay confirms a terminal status.</div>
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+          <h3 style="font-size:1rem;">Gateway balance</h3>
+          <button class="btn btn-ghost btn-sm" onclick="loadGateway()"><i class="fa-solid fa-rotate"></i> Refresh</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-value mint" id="gw-available">—</div><div class="stat-label">Available</div></div>
+          <div class="stat-card"><div class="stat-value" id="gw-frozen">—</div><div class="stat-label">Frozen</div></div>
+          <div class="stat-card"><div class="stat-value" id="gw-total">—</div><div class="stat-label">Total gateway balance</div></div>
+        </div>
+        <div id="gw-balance-updated" class="muted" style="font-size:.75rem;margin-top:8px;"></div>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-money-bill-transfer mint"></i> Withdraw from MGM Pay</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Amount ₦</label><input type="number" min="1" step="0.01" class="input" id="gw-payout-amount"></div>
+          <div class="form-group"><label class="form-label">Bank</label><select class="select" id="gw-payout-bank"></select></div>
+          <div class="form-group"><label class="form-label">Account Number</label><input class="input" id="gw-payout-account" inputmode="numeric" maxlength="10"></div>
+          <div class="form-group"><label class="form-label">Account Name</label><input class="input" id="gw-payout-name"></div>
+        </div>
+        <button class="btn btn-danger btn-sm" onclick="createGatewayPayout()"><i class="fa-solid fa-paper-plane"></i> Submit gateway payout</button>
+      </div>
+      <h3 class="section-title" style="font-size:1rem;"><i class="fa-solid fa-clock-rotate-left"></i>Admin gateway payouts</h3>
+      <div class="table-wrap"><table><thead><tr><th>Order</th><th>Amount</th><th>Bank / Account</th><th>Status</th><th>Provider status</th><th>Date</th><th>Action</th></tr></thead><tbody id="gw-payout-table"></tbody></table></div>
     </section>
 
     <!-- DEPOSITS -->
@@ -154,6 +185,16 @@
           <div class="form-group"><label class="form-label">Min Withdrawal ₦</label><input type="number" class="input" id="set-min-wd"></div>
         </div>
         <button class="btn btn-primary btn-sm" onclick="saveSettingsGroup('fees')"><i class="fa-solid fa-save"></i> Save</button>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-route mint"></i> Payment routing</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Deposits</label><select class="select" id="set-deposit-mode"><option value="manual">Manual bank transfer</option><option value="gateway">MGM Pay gateway</option></select></div>
+          <div class="form-group"><label class="form-label">Withdrawals</label><select class="select" id="set-withdrawal-mode"><option value="manual">Manual bank payout</option><option value="gateway">MGM Pay gateway</option></select></div>
+          <div class="form-group"><label class="form-label">Gateway withdrawals require admin review?</label><select class="select" id="set-gateway-wd-review"><option value="true">Yes — admin approves before gateway</option><option value="false">No — automatically send to gateway</option></select></div>
+        </div>
+        <p class="muted" style="font-size:.76rem;line-height:1.5;margin:0 0 12px;">Review is used only when withdrawals are set to MGM Pay. Manual modes continue to use the existing approval flow. Configure the PHP bridge and server secrets before enabling gateway mode.</p>
+        <button class="btn btn-primary btn-sm" onclick="saveSettingsGroup('gateway')"><i class="fa-solid fa-save"></i> Save routing</button>
       </div>
       <div class="card">
         <h3 style="margin-bottom:14px;font-size:1rem;"><i class="fa-solid fa-building-columns mint"></i> Deposit Bank Account</h3>
@@ -296,6 +337,7 @@
       return data;
     };
     const money = n => `₦${Number(n).toLocaleString()}`;
+    const MGM_BANKS = [['Opay','20009'],['ASO Savings and Loans','20012'],['Access Bank','20013'],['Ecobank Nigeria','20026'],['Fidelity Bank','20036'],['First Bank of Nigeria','20039'],['First City Monument Bank','20040'],['Globus Bank','20043'],['Guaranty Trust Bank','20045'],['Heritage Bank','20047'],['Jaiz Bank','20051'],['Keystone Bank','20053'],['Kuda Bank','20055'],['One Finance','20063'],['PalmPay','20065'],['Parkway - ReadyCash','20066'],['Polaris Bank','20068'],['Providus Bank','20069'],['Stanbic IBTC Bank','20073'],['Standard Chartered Bank','20074'],['Sterling Bank','20075'],['TAJ Bank','20076'],['Titan Bank','20079'],['Union Bank of Nigeria','20080'],['United Bank For Africa','20081'],['Unity Bank','20082'],['VFD Microfinance Bank','20083'],['Zenith Bank','20086'],['Moniepoint Microfinance Bank','20087']];
     let FEE_PCT = 0;
     let wdCache = [];
 
@@ -314,7 +356,7 @@
       document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       btn.classList.add('active');
-      ({ dashboard: loadDashboard, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
+      ({ dashboard: loadDashboard, gateway: loadGateway, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
     };
     const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
 
@@ -330,6 +372,51 @@
       document.getElementById('s-comm').textContent = money(s.totalCommissions);
     }
 
+    window.loadGateway = async () => {
+      const select = document.getElementById('gw-payout-bank');
+      if (!select.dataset.loaded) {
+        select.innerHTML = '<option value="">Select bank</option>' + MGM_BANKS.map(([name, code]) => `<option value="${code}">${name}</option>`).join('');
+        select.dataset.loaded = '1';
+      }
+      try {
+        const result = await api('get-gateway-overview');
+        const balance = result.balance || {};
+        document.getElementById('gw-available').textContent = money(balance.available_balance || 0);
+        document.getElementById('gw-frozen').textContent = money(balance.freeze_balance || 0);
+        document.getElementById('gw-total').textContent = money(balance.total_balance || 0);
+        document.getElementById('gw-balance-updated').textContent = `Updated ${new Date().toLocaleString()}`;
+        const payouts = result.payouts || [];
+        document.getElementById('gw-payout-table').innerHTML = payouts.length ? payouts.map(p => `
+          <tr><td>${p.order_id}</td><td class="gold">${money(p.amount)}</td><td>${p.bank_name}<div class="muted" style="font-size:.7rem;">${p.account_number} • ${p.account_name}</div></td><td>${badge(p.status)}</td><td>${p.gateway_status || '—'}${p.gateway_status_detail ? `<div class="muted" style="font-size:.68rem;">${p.gateway_status_detail}</div>` : ''}</td><td style="font-size:.76rem;">${new Date(p.created_at).toLocaleString()}</td><td>${p.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="reconcileAdminPayout('${p.order_id}')">Reconcile</button>` : '—'}</td></tr>`).join('') : '<tr><td colspan="7" style="text-align:center;padding:24px;" class="muted">No admin payouts yet</td></tr>';
+      } catch (e) {
+        ['gw-available','gw-frozen','gw-total'].forEach(id => document.getElementById(id).textContent = 'Unavailable');
+        document.getElementById('gw-payout-table').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:24px;" class="muted">${e.message}</td></tr>`;
+      }
+    };
+    window.createGatewayPayout = async () => {
+      const amount = Number(document.getElementById('gw-payout-amount').value);
+      const bank = document.getElementById('gw-payout-bank');
+      const account = document.getElementById('gw-payout-account').value.trim();
+      const accountName = document.getElementById('gw-payout-name').value.trim();
+      if (!Number.isFinite(amount) || amount <= 0 || !bank.value || !/^\d{10}$/.test(account) || !accountName) return showToast('Enter a valid amount and complete bank details.', 'error');
+      if (!confirm(`Send ₦${amount.toLocaleString()} from the MGM Pay gateway to ${accountName} (${bank.options[bank.selectedIndex].text}, ${account})?`)) return;
+      try {
+        const result = await api('create-gateway-admin-payout', { method: 'POST', body: JSON.stringify({ amount, bank_code: bank.value, account_number: account, account_name: accountName }) });
+        showToast(result.message || `Gateway payout submitted (${result.payout?.order_id || 'pending confirmation'}).`, 'success');
+        document.getElementById('gw-payout-amount').value = '';
+        await loadGateway();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    window.reconcileAdminPayout = async (orderId) => {
+      if (!confirm(`Query MGM Pay for admin payout ${orderId}?`)) return;
+      try {
+        const result = await api('reconcile-gateway-admin-payout', { method: 'POST', body: JSON.stringify({ order_id: orderId }) });
+        showToast(`MGM Pay status: ${result.status || 'updated'} (${result.status_code})`, 'success');
+        await loadGateway();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+
     // ===== DEPOSITS =====
     window.loadDeposits = async () => {
       const { deposits } = await api(`get-deposits&status=${document.getElementById('dep-filter').value}`);
@@ -337,19 +424,19 @@
         <tr>
           <td><b>${d.profiles?.full_name || '—'}</b><div class="muted" style="font-size:.72rem;">${d.profiles?.email}</div></td>
           <td class="mint" style="font-weight:800;">${money(d.amount)}</td>
-          <td style="font-size:.8rem;">${d.sender_name || '—'}<div class="muted" style="font-size:.7rem;">${d.proof_ref || d.payment_method || ''}</div></td>
+          <td style="font-size:.8rem;">${d.sender_name || '—'}<div class="muted" style="font-size:.7rem;">${d.gateway_provider === 'mgm_pay' ? `MGM Pay • ${d.gateway_order_id || ''}` : (d.proof_ref || d.payment_method || '')}${d.gateway_status ? `<br>${d.gateway_status}` : ''}</div></td>
           <td>${badge(d.status)}</td>
           <td style="font-size:.78rem;">${new Date(d.created_at).toLocaleDateString()}</td>
-          <td>${d.status === 'pending' ? `<div class="action-row">
+          <td>${d.status === 'pending' ? d.gateway_provider === 'mgm_pay' ? `<div class="action-row"><button class="btn btn-primary btn-sm" onclick="processDeposit('${d.id}','reconcile')">Reconcile</button></div>` : `<div class="action-row">
             <button class="btn btn-primary btn-sm" onclick="processDeposit('${d.id}','approve')">Approve</button>
             <button class="btn btn-danger btn-sm" onclick="processDeposit('${d.id}','reject')">Reject</button></div>` : '—'}</td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No deposits</td></tr>';
     };
     window.processDeposit = async (id, act) => {
-      if (!confirm(`${act.toUpperCase()} this deposit?`)) return;
+      if (!confirm(act === 'reconcile' ? 'Query MGM Pay for the current status of this deposit?' : `${act.toUpperCase()} this deposit?`)) return;
       try {
         const r = await api('process-deposit', { method: 'POST', body: JSON.stringify({ deposit_id: id, act }) });
-        showToast(act === 'approve' ? `Approved! ${money(r.credited)} credited${r.commission?.paid ? ` + ${money(r.commission.amount)} commission` : ''}` : 'Deposit rejected', act === 'approve' ? 'success' : 'error');
+        showToast(act === 'approve' ? `Approved! ${money(r.credited)} credited${r.commission?.paid ? ` + ${money(r.commission.amount)} commission` : ''}` : act === 'reconcile' ? `MGM Pay status: ${r.status || 'updated'} (${r.status_code})` : 'Deposit rejected', act === 'reject' ? 'error' : 'success');
         loadDeposits(); loadDashboard();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -369,11 +456,11 @@
           <td style="font-weight:800;color:var(--warning);">${money(gross)}</td>
           <td style="font-size:.8rem;"><span style="color:var(--danger);">-${money(fee)} (${FEE_PCT}%)</span><br><b class="mint">Pay: ${money(net)}</b></td>
           <td style="font-size:.8rem;">${w.bank_name}<div class="muted" style="font-size:.72rem;">${w.account_number} • ${w.account_name}</div></td>
-          <td>${badge(w.status)}</td>
+          <td>${badge(w.status)}${w.gateway_provider === 'mgm_pay' ? `<div class="muted" style="font-size:.68rem;margin-top:4px;">MGM: ${w.gateway_status || '—'}${w.gateway_status_detail ? `<br>${w.gateway_status_detail}` : ''}</div>` : ''}</td>
           <td style="font-size:.78rem;">${new Date(w.created_at).toLocaleDateString()}</td>
-          <td>${w.status === 'pending' ? `<div class="action-row">
-            <button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Pay ${money(net)}</button>
-            <button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : '—'}</td>
+          <td>${w.status === 'pending' ? w.gateway_provider === 'mgm_pay'
+            ? w.gateway_status === 'AWAITING_REVIEW' || w.gateway_status === 'READY_TO_SEND' ? `<div class="action-row"><button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Send to MGM ${money(net)}</button><button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : `<button class="btn btn-primary btn-sm" onclick="processWithdrawal('${w.id}','reconcile')">Reconcile status</button>`
+            : `<div class="action-row"><button class="btn btn-gold btn-sm" onclick="processWithdrawal('${w.id}','approve')">Pay ${money(net)}</button><button class="btn btn-danger btn-sm" onclick="processWithdrawal('${w.id}','reject')">Reject</button></div>` : '—'}</td>
         </tr>`;
       }).join('') : '<tr><td colspan="7" style="text-align:center;padding:30px;" class="muted">No withdrawals</td></tr>';
     };
@@ -381,14 +468,18 @@
       const w = wdCache.find(x => x.id === id);
       const gross = Number(w?.amount || 0);
       const fee = Math.round(gross * FEE_PCT) / 100;
-      const net = gross - fee;
-      const msg = act === 'approve'
-        ? `Mark as PAID?\nYou must send ${money(net)} to ${w?.account_name} (${w?.bank_name} ${w?.account_number}).\n(Gross ${money(gross)} − ${FEE_PCT}% fee = ${money(net)})`
-        : `REJECT and auto-refund ${money(gross)} to this user?`;
+      const net = Number(w?.net_amount ?? gross - fee);
+      const msg = act === 'reconcile'
+        ? `Query MGM Pay for order ${w?.gateway_order_id} before taking any other action?`
+        : act === 'approve' && w?.gateway_provider === 'mgm_pay'
+          ? `Send ${money(net)} through MGM Pay to ${w?.account_name} (${w?.bank_name} ${w?.account_number})? The request remains pending until MGM Pay confirms the result.`
+          : act === 'approve'
+            ? `Mark as PAID?\nYou must send ${money(net)} to ${w?.account_name} (${w?.bank_name} ${w?.account_number}).\n(Gross ${money(gross)} − ${FEE_PCT}% fee = ${money(net)})`
+            : `REJECT and auto-refund ${money(gross)} to this user?`;
       if (!confirm(msg)) return;
       try {
-        await api('process-withdrawal', { method: 'POST', body: JSON.stringify({ withdrawal_id: id, act }) });
-        showToast(act === 'approve' ? `Approved — send ${money(net)} from your bank now` : 'Rejected & refunded', act === 'approve' ? 'gold' : 'error');
+        const result = await api('process-withdrawal', { method: 'POST', body: JSON.stringify({ withdrawal_id: id, act }) });
+        showToast(act === 'reconcile' ? `MGM Pay status: ${result.status || 'updated'} (${result.status_code})` : act === 'approve' && w?.gateway_provider === 'mgm_pay' ? 'Payout submitted to MGM Pay; waiting for final callback.' : act === 'approve' ? `Approved — send ${money(net)} from your bank now` : 'Rejected & refunded', act === 'reject' ? 'error' : 'success');
         loadWithdrawals(); loadDashboard();
       } catch (e) { showToast(e.message, 'error'); }
     };
@@ -675,12 +766,16 @@
       document.getElementById('set-tg').value = s.telegram_link || '';
       document.getElementById('set-wa').value = s.whatsapp_link || '';
       document.getElementById('set-support').value = s.support_link || '';
+      document.getElementById('set-deposit-mode').value = s.deposit_mode === 'gateway' ? 'gateway' : 'manual';
+      document.getElementById('set-withdrawal-mode').value = s.withdrawal_mode === 'gateway' ? 'gateway' : 'manual';
+      document.getElementById('set-gateway-wd-review').value = String(s.gateway_withdrawal_review ?? 'true').toLowerCase() === 'false' ? 'false' : 'true';
     }
     window.saveSettingsGroup = async (group) => {
       const map = {
         fees: { referral_commission_percentage: document.getElementById('set-ref-pct').value, referral_level_2_percentage: document.getElementById('set-ref-l2-pct').value, referral_level_3_percentage: document.getElementById('set-ref-l3-pct').value, withdrawal_fee_percentage: document.getElementById('set-wd-fee').value, min_deposit: document.getElementById('set-min-dep').value, min_withdrawal: document.getElementById('set-min-wd').value },
         bank: { deposit_bank_name: document.getElementById('set-bank').value, deposit_account_number: document.getElementById('set-acct').value, deposit_account_name: document.getElementById('set-acct-name').value },
-        links: { telegram_link: document.getElementById('set-tg').value, whatsapp_link: document.getElementById('set-wa').value, support_link: document.getElementById('set-support').value }
+        links: { telegram_link: document.getElementById('set-tg').value, whatsapp_link: document.getElementById('set-wa').value, support_link: document.getElementById('set-support').value },
+        gateway: { deposit_mode: document.getElementById('set-deposit-mode').value, withdrawal_mode: document.getElementById('set-withdrawal-mode').value, gateway_withdrawal_review: document.getElementById('set-gateway-wd-review').value }
       };
       try {
         await api('save-settings', { method: 'POST', body: JSON.stringify(map[group]) });
