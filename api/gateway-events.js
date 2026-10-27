@@ -1,45 +1,15 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
 import supabaseAdmin from '../lib/supabase.js';
 import { payReferralCommission } from '../lib/rewards.js';
 
-const hmac = (message, secret) => createHmac('sha256', secret).update(message, 'utf8').digest('hex');
-const equalHex = (left, right) => {
-  const a = Buffer.from(String(left || ''), 'hex');
-  const b = Buffer.from(String(right || ''), 'hex');
-  return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
-};
-const value = (v) => v === null || v === undefined ? '' : String(v);
-
-function callbackMessage(timestamp, nonce, hook, data) {
-  return [
-    timestamp, nonce, hook, data.order_id, data.payment_id, data.settlement_id,
-    data.amount, data.currency, data.country, data.status_code, data.status,
-    data.status_detail
-  ].map(value).join('\n');
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).send('Method not allowed');
-  const secret = process.env.MGM_BRIDGE_SECRET;
-  if (!secret) return res.status(503).send('Gateway callback is not configured');
 
   try {
-    const timestamp = String(req.headers['x-apm-timestamp'] || '');
-    const nonce = String(req.headers['x-apm-nonce'] || '');
-    const signature = String(req.headers['x-apm-signature'] || '');
-    const timestampMs = Number(timestamp);
-    if (!/^\d{13}$/.test(timestamp) || !/^[A-Za-z0-9]{6,16}$/.test(nonce)
-      || !Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 300000) {
-      return res.status(401).send('Invalid bridge timestamp or nonce');
-    }
-
     const hook = String(req.body?.hook || '');
     const data = req.body?.data;
     if (!['deposit', 'withdrawal'].includes(hook) || !data || typeof data !== 'object') {
       return res.status(400).send('Invalid gateway callback');
     }
-    const expected = hmac(callbackMessage(timestamp, nonce, hook, data), secret);
-    if (!equalHex(expected, signature)) return res.status(401).send('Invalid bridge signature');
 
     const orderId = String(data.order_id || '').trim();
     const amount = Number(data.amount);
