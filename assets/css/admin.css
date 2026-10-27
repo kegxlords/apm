@@ -45,8 +45,30 @@ tbody tr:hover { background: rgba(0,224,138,.04); }
 .inline-input { padding: 8px 10px; background: rgba(0,0,0,.35); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-size: .85rem; width: 110px; }
 
 
-/* 3M Mining operations admin theme */
-:root { --bg: #071016; --surface: #0d1b24; --surface-2: #132936; --primary: #38e8ff; --primary-dim: rgba(56,232,255,.14); --gold: #ffb84a; --gold-dim: rgba(255,184,74,.15); --border: rgba(56,232,255,.16); }
-body { background: radial-gradient(900px 500px at 100% -5%, rgba(56,232,255,.13), transparent 62%), var(--bg); }
-.admin-header { background: rgba(7,16,22,.94); border-bottom-color: rgba(56,232,255,.18); }
-.apm-logo .coin { background: linear-gradient(135deg, #38e8ff, #138bb2); color: #041017; box-shadow: 0 0 22px rgba(56,232,255,.36); }
+/* 3M Admin — clean white workspace */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f5f7fc;
+  --surface-solid: #ffffff;
+  --text: #14264a;
+  --muted: #5b6e91;
+  --faint: #8797b4;
+  --primary: #4169e1;
+  --primary-2: #1d3ea8;
+  --primary-dim: rgba(65,105,225,.12);
+  --gold: #b45309;
+  --gold-dim: rgba(217,119,6,.12);
+  --border: rgba(20,38,74,.13);
+}
+body { background: #fff; color: var(--text); }
+.admin-header { background: rgba(255,255,255,.97); border-bottom: 1px solid var(--border); box-shadow: 0 4px 18px rgba(20,38,74,.05); }
+.admin-tabs { background: rgba(255,255,255,.97); border-bottom-color: var(--border); }
+.admin-tab { color: var(--muted); }
+.admin-tab.active { color: var(--primary-2); border-bottom-color: var(--primary); }
+.card, .stat-card, .table-wrap { background: #fff; }
+th { background: #f3f6fc; color: #5b6e91; }
+tbody tr:hover { background: rgba(65,105,225,.045); }
+.inline-input, .input, .select, textarea { background: #fff; color: var(--text); border-color: var(--border); }
+.inline-input:focus, .input:focus, .select:focus, textarea:focus { outline: 2px solid rgba(65,105,225,.18); border-color: var(--primary); }
+.apm-logo .coin { background: linear-gradient(135deg, #4169e1, #1d3ea8); color: #fff; box-shadow: 0 0 18px rgba(65,105,225,.2); }
