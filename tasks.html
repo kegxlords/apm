@@ -23,13 +23,16 @@
     .machine-progress { height:8px; overflow:hidden; border-radius:999px; background:rgba(85,116,101,.14); }
     .machine-progress span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#6EE7B7,#10B981,#047857); }
     .rented-foot { display:flex; justify-content:space-between; gap:10px; margin-top:9px; color:var(--muted); font-size:.7rem; }
+    .payout-alert { display:none; padding:12px 14px; margin-bottom:12px; border:1px solid rgba(255,176,32,.28); border-radius:12px; background:rgba(255,176,32,.08); color:var(--warning); font-size:.78rem; line-height:1.5; }
+    .payout-alert.visible { display:block; }
   </style>
 </head>
 <body>
   <div id="header-container"></div>
   <main class="page">
-    <section class="hero-card rented-hero"><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / ACTIVE EQUIPMENT</span><h1>Rented Machines</h1><p>Standard machines pay at maturity. The ₦50,000 machine credits ₦1,500 every 24 hours for 365 payouts; the purchase capital is not returned.</p><a href="/membership.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-industry"></i> Rent another machine</a></section>
+    <section class="hero-card rented-hero"><span class="eyebrow" style="color:var(--primary);font-size:.65rem;letter-spacing:.14em;font-weight:800;">NORTHSTAR / ACTIVE EQUIPMENT</span><h1>Rented Machines</h1><p>Capital and profit remain locked until the package expires, then the full maturity payout is credited to your wallet.</p><a href="/membership.html" class="btn btn-primary btn-sm" style="margin-top:16px;"><i class="fa-solid fa-industry"></i> Rent another machine</a></section>
     <div class="section-title"><i class="fa-solid fa-briefcase"></i> My rented packages</div>
+    <div class="payout-alert" id="payout-alert" role="status"></div>
     <div id="rented-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading rented machines...</div></div>
   </main>
   <div id="footer-container"></div>
@@ -41,44 +44,91 @@
     const token = async () => (await supabase.auth.getSession()).data.session.access_token;
     const money = (value) => `₦${Number(value || 0).toLocaleString('en-NG')}`;
     const list = document.getElementById('rented-list');
+    const payoutAlert = document.getElementById('payout-alert');
     const dateTime = (value) => value ? new Date(value).toLocaleString('en-NG', { day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' }) : '—';
-    async function load() {
+    const maturityTime = (machine) => new Date(machine.ends_at || `${machine.end_date}T23:59:59Z`).getTime();
+    let settlementTimer = null;
+    async function settleMaturedPayouts() {
+      const response = await fetch('/api/mining-machines?action=processPayouts', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${await token()}` }
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || `Payout settlement failed (HTTP ${response.status})`);
+      return result;
+    }
+    function scheduleSettlement(rented) {
+      clearTimeout(settlementTimer);
+      const now = Date.now();
+      const active = rented.filter((machine) => machine.status === 'active');
+      const nextMaturity = Math.min(...active.map(maturityTime).filter((time) => Number.isFinite(time) && time > now));
+      const alreadyMatured = active.some((machine) => maturityTime(machine) <= now);
+      if (alreadyMatured) {
+        settlementTimer = setTimeout(() => load(true), 60000);
+      } else if (Number.isFinite(nextMaturity)) {
+        settlementTimer = setTimeout(() => load(true), Math.max(1000, nextMaturity - now + 1000));
+      }
+    }
+    async function load(runSettlement = false) {
       try {
-        const res = await fetch('/api/mining-machines?action=getRented', { headers: { Authorization: `Bearer ${await token()}` } });
-        const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        if (!data.rented.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No rented machines yet. Choose a package to get started.</div>'; return; }
-        list.innerHTML = data.rented.map((machine) => {
+        const fetchRented = async () => {
+          const response = await fetch('/api/mining-machines?action=getRented', { headers: { Authorization: `Bearer ${await token()}` } });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
+          return result.rented || [];
+        };
+        let rented = await fetchRented();
+        const hasMaturedActiveMachine = rented.some((machine) => machine.status === 'active' && maturityTime(machine) <= Date.now());
+        if (runSettlement && hasMaturedActiveMachine) {
+          try {
+            await settleMaturedPayouts();
+            payoutAlert.textContent = '';
+            payoutAlert.classList.remove('visible');
+            rented = await fetchRented();
+          } catch (settlementError) {
+            payoutAlert.textContent = `A machine has reached maturity, but its payout could not be confirmed yet. ${settlementError.message}`;
+            payoutAlert.classList.add('visible');
+          }
+        } else if (runSettlement) {
+          payoutAlert.textContent = '';
+          payoutAlert.classList.remove('visible');
+        }
+        if (!rented.length) { list.innerHTML = '<div class="empty-state"><i class="fa-solid fa-briefcase"></i>No rented machines yet. Choose a package to get started.</div>'; scheduleSettlement([]); return; }
+        list.innerHTML = rented.map((machine) => {
           const start = new Date(machine.purchase_time || machine.created_at).getTime();
-          const end = new Date(machine.ends_at || `${machine.end_date}T23:59:59Z`).getTime();
+          const end = maturityTime(machine);
           const progress = Math.max(0, Math.min(100, ((Date.now() - start) / Math.max(1, end - start)) * 100));
-          const active = machine.status === 'active';
-          const dailyMachine = Number(machine.amount) === 50000 && Number(machine.daily_return) === 1500 && Number(machine.wealth_packages?.duration_days) === 365;
-          return `<article class="card rented-card"><div class="rented-top"><div><div class="rented-name">${machine.wealth_packages?.name || 'Mining Machine'}</div><div class="rented-meta">Purchased ${dateTime(machine.purchase_time || machine.created_at)}</div></div><span class="badge ${active ? 'badge-mint' : 'badge-gray'}">${active ? 'Active' : 'Completed'}</span></div><div class="rented-stats"><div class="rented-stat"><b>${money(machine.amount)}</b><span>Invested</span></div><div class="rented-stat gold"><b>${dailyMachine ? money(machine.daily_return) : money(machine.profit_at_maturity)}</b><span>${dailyMachine ? 'Daily income' : 'Profit at maturity'}</span></div><div class="rented-stat"><b>${money(machine.total_earned)}</b><span>Earned so far</span></div></div><div class="machine-progress"><span style="width:${progress}%"></span></div><div class="rented-foot"><span>${active ? (dailyMachine ? `Next income ${dateTime(machine.next_income_at)}` : `Matures ${dateTime(machine.ends_at || machine.end_date)}`) : 'Rental cycle complete'}</span><span>Ends ${dateTime(machine.ends_at || machine.end_date)}</span></div></article>`;
+          const maturityPassed = Number.isFinite(end) && end <= Date.now();
+          const active = machine.status === 'active' && !maturityPassed;
+          const label = maturityPassed && machine.status === 'active' ? 'Payout pending' : active ? 'Active' : 'Completed';
+          const badge = active ? 'badge-mint' : maturityPassed && machine.status === 'active' ? 'badge-amber' : 'badge-gray';
+          const endsAt = machine.ends_at || machine.end_date;
+          return `<article class="card rented-card"><div class="rented-top"><div><div class="rented-name">${machine.wealth_packages?.name || 'Mining Machine'}</div><div class="rented-meta">Purchased ${dateTime(machine.purchase_time || machine.created_at)}</div></div><span class="badge ${badge}">${label}</span></div><div class="rented-stats"><div class="rented-stat"><b>${money(machine.amount)}</b><span>Invested</span></div><div class="rented-stat gold"><b>${money(machine.profit_at_maturity)}</b><span>Profit at maturity</span></div><div class="rented-stat"><b>${money(machine.total_earned)}</b><span>Earned so far</span></div></div><div class="machine-progress"><span style="width:${progress}%"></span></div><div class="rented-foot"><span>${active ? `Matures ${dateTime(endsAt)}` : maturityPassed && machine.status === 'active' ? 'Maturity reached • payout pending' : 'Rental cycle complete'}</span><span>Ends ${dateTime(endsAt)}</span></div></article>`;
         }).join('');
         list.querySelectorAll('.rented-card').forEach((card, index) => {
-          const machine = data.rented[index];
+          const machine = rented[index];
           const stats = card.querySelectorAll('.rented-stat');
-          const dailyMachine = Number(machine.amount) === 50000 && Number(machine.daily_return) === 1500 && Number(machine.wealth_packages?.duration_days) === 365;
-          stats[1].querySelector('b').textContent = money(dailyMachine ? machine.daily_return : machine.profit_at_maturity);
-          stats[1].querySelector('span').textContent = dailyMachine ? 'Daily income' : 'Profit at maturity';
-          card.querySelector('.rented-foot span:first-child').textContent = machine.status === 'active'
-            ? (dailyMachine ? `Next income ${dateTime(machine.next_income_at)}` : `Matures ${dateTime(machine.ends_at || machine.end_date)}`)
-            : 'Rental cycle complete';
+          stats[1].querySelector('b').textContent = money(machine.profit_at_maturity);
+          stats[1].querySelector('span').textContent = 'Profit at maturity';
+          const maturityPassed = maturityTime(machine) <= Date.now();
+          card.querySelector('.rented-foot span:first-child').textContent = machine.status === 'active' && !maturityPassed
+            ? `Matures ${dateTime(machine.ends_at || machine.end_date)}`
+            : maturityPassed && machine.status === 'active'
+              ? 'Maturity reached • payout pending'
+              : 'Rental cycle complete';
           const capitalStatus = document.createElement('div');
           capitalStatus.className = 'rented-meta';
           capitalStatus.textContent = machine.maturity_paid_at
             ? `Capital and profit paid ${dateTime(machine.maturity_paid_at)}`
-            : machine.status === 'completed'
+            : machine.status === 'completed' || maturityPassed
               ? 'Machine matured • payout pending'
-              : dailyMachine
-                ? `₦${Number(machine.daily_return).toLocaleString('en-NG')} credits every 24 hours for 365 payouts; capital is not returned`
-                : 'Capital and profit locked until maturity';
+              : 'Capital and profit locked until maturity';
           card.append(capitalStatus);
         });
+        scheduleSettlement(rented);
       } catch (error) { list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>${error.message}<br><button class="btn btn-primary btn-sm" style="margin-top:14px;" onclick="location.reload()">Retry</button></div>`; }
     }
-    load();
-    setInterval(load, 60000);
+    load(true);
   </script>
 </body>
 </html>
