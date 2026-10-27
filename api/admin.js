@@ -2,6 +2,9 @@ import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, isAdmin } from '../lib/auth.js';
 import { payReferralCommission, getSetting } from '../lib/rewards.js';
 import { getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
+import { randomUUID } from 'node:crypto';
+import { callMgmBridge, mgmBridgeConfigured, ngnAmount, validNgnBankCode, MGM_NG_BANKS } from '../lib/mgm-bridge.js';
+import { submitMemberWithdrawalToGateway } from '../lib/mgm-operations.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
 
@@ -33,6 +36,9 @@ export default async function handler(req, res) {
       case 'send-message': return await sendMessage(req, res);
       case 'get-settings': return await getSettings(res);
       case 'save-settings': return await saveSettings(req, res);
+      case 'get-gateway-overview': return await getGatewayOverview(res);
+      case 'create-gateway-admin-payout': return await createGatewayAdminPayout(req, user, res);
+      case 'reconcile-gateway-admin-payout': return await reconcileGatewayAdminPayout(req, res);
       default: return res.status(400).json({ error: 'Invalid action' });
     }
   } catch (err) {
@@ -78,7 +84,18 @@ async function processDeposit(req, res) {
   const { deposit_id, act, note } = req.body;
   const { data: d } = await supabaseAdmin.from('deposits').select('*').eq('id', deposit_id).single();
   if (!d) return res.status(404).json({ error: 'Deposit not found' });
+  if (act === 'reconcile') {
+    if (d.gateway_provider !== 'mgm_pay' || !d.gateway_order_id) return res.status(400).json({ error: 'This is not an MGM Pay deposit.' });
+    const applied = await reconcileDepositOrder(d.gateway_order_id);
+    return res.json({ ok: true, status_code: applied.status_code, status: applied.status });
+  }
   if (d.status !== 'pending') return res.status(400).json({ error: 'Already processed' });
+  if (d.gateway_provider === 'mgm_pay' && act === 'reject') {
+    return res.status(409).json({ error: 'Do not manually cancel an MGM Pay order while its status is pending or uncertain. Reconcile it using its original order ID.' });
+  }
+  if (d.gateway_provider === 'mgm_pay' && act === 'approve') {
+    return res.status(400).json({ error: 'Gateway deposits are credited only after MGM Pay confirms success. Use Reconcile to check its status.' });
+  }
 
   if (act === 'reject') {
     await supabaseAdmin.from('deposits').update({ status: 'rejected', note: note || 'Rejected by admin', updated_at: new Date().toISOString() }).eq('id', d.id);
@@ -120,9 +137,23 @@ async function processWithdrawal(req, res) {
   const { withdrawal_id, act, note } = req.body;
   const { data: w } = await supabaseAdmin.from('withdrawals').select('*').eq('id', withdrawal_id).single();
   if (!w) return res.status(404).json({ error: 'Withdrawal not found' });
+  if (act === 'reconcile') {
+    if (w.gateway_provider !== 'mgm_pay' || !w.gateway_order_id) return res.status(400).json({ error: 'This is not an MGM Pay withdrawal.' });
+    const applied = await reconcileWithdrawalOrder(w.gateway_order_id);
+    return res.json({ ok: true, status_code: applied.status_code, status: applied.status });
+  }
   if (w.status !== 'pending') return res.status(400).json({ error: 'Already processed' });
 
   if (act === 'reject') {
+    if (w.gateway_provider === 'mgm_pay') {
+      const { data: rejected, error } = await supabaseAdmin.rpc('reject_mgm_withdrawal_request', {
+        p_withdrawal_id: w.id,
+        p_note: note || 'Rejected by admin'
+      });
+      if (error) throw error;
+      if (!rejected) return res.status(409).json({ error: 'This payout was already handled or sent to MGM Pay. Reconcile with MGM Pay before taking further action.' });
+      return res.json({ ok: true, action: 'rejected_refunded' });
+    }
     const { data: wallet } = await supabaseAdmin.from('wallets').select('balance').eq('user_id', w.user_id).single();
     await supabaseAdmin.from('wallets').update({ balance: Number(wallet?.balance || 0) + Number(w.amount), updated_at: new Date().toISOString() }).eq('user_id', w.user_id);
     await supabaseAdmin.from('withdrawals').update({ status: 'rejected', note: note || 'Rejected by admin', processed_at: new Date().toISOString() }).eq('id', w.id);
@@ -131,11 +162,152 @@ async function processWithdrawal(req, res) {
   }
 
   if (act === 'approve') {
+    if (w.gateway_provider === 'mgm_pay') {
+      const result = await submitMemberWithdrawalToGateway(w.id);
+      return res.json({ ok: true, action: 'submitted', gateway_status: result.status, settlement_id: result.settlement_id });
+    }
     await supabaseAdmin.from('withdrawals').update({ status: 'approved', note: note || 'Approved — pay manually', processed_at: new Date().toISOString() }).eq('id', w.id);
     await supabaseAdmin.from('transactions').update({ status: 'approved' }).eq('reference', `wd_${w.id}`);
     return res.json({ ok: true, action: 'approved' });
   }
   return res.status(400).json({ error: 'Invalid action' });
+}
+
+async function reconcileDepositOrder(orderId) {
+  const result = await callMgmBridge('query_deposit', { order_id: orderId });
+  const d = result.data || {};
+  if (String(d.order_id || '') !== String(orderId)) throw new Error('MGM Pay returned a different deposit order ID.');
+  const { data: applied, error } = await supabaseAdmin.rpc('apply_mgm_deposit_callback', {
+    p_order_id: orderId,
+    p_payment_id: d.payment_id ? String(d.payment_id) : null,
+    p_amount: Number(d.amount),
+    p_currency: String(d.currency || 'NGN'),
+    p_status: d.status ? String(d.status) : null,
+    p_status_code: Number(d.status_code),
+    p_status_detail: d.status_detail ? String(d.status_detail) : null,
+    p_payload: d
+  });
+  if (error) throw error;
+  if (!applied?.ok) throw new Error(applied?.error || 'Could not apply provider deposit status.');
+  if (Number(d.status_code) === 100) {
+    const { data: deposit, error: depositError } = await supabaseAdmin.from('deposits')
+      .select('id,user_id,amount,status').eq('id', applied.deposit_id).single();
+    if (depositError) throw depositError;
+    if (deposit.status === 'completed') await payReferralCommission(deposit);
+  }
+  return d;
+}
+
+async function reconcileWithdrawalOrder(orderId) {
+  const result = await callMgmBridge('query_withdrawal', { order_id: orderId });
+  const d = result.data || {};
+  if (String(d.order_id || '') !== String(orderId)) throw new Error('MGM Pay returned a different payout order ID.');
+  const { data: applied, error } = await supabaseAdmin.rpc('apply_mgm_withdrawal_callback', {
+    p_order_id: orderId,
+    p_settlement_id: d.settlement_id ? String(d.settlement_id) : null,
+    p_amount: Number(d.amount),
+    p_currency: String(d.currency || 'NGN'),
+    p_status: d.status ? String(d.status) : null,
+    p_status_code: Number(d.status_code),
+    p_status_detail: d.status_detail ? String(d.status_detail) : null,
+    p_payload: d
+  });
+  if (error) throw error;
+  if (!applied?.ok) throw new Error(applied?.error || 'Could not apply provider payout status.');
+  return d;
+}
+
+async function reconcileGatewayAdminPayout(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const orderId = String(req.body?.order_id || '').trim();
+  if (!orderId) return res.status(400).json({ error: 'Order ID is required.' });
+  const result = await callMgmBridge('query_withdrawal', { order_id: orderId });
+  const d = result.data || {};
+  if (String(d.order_id || '') !== orderId) throw new Error('MGM Pay returned a different payout order ID.');
+  const { data: applied, error } = await supabaseAdmin.rpc('apply_mgm_withdrawal_callback', {
+    p_order_id: orderId,
+    p_settlement_id: d.settlement_id ? String(d.settlement_id) : null,
+    p_amount: Number(d.amount),
+    p_currency: String(d.currency || 'NGN'),
+    p_status: d.status ? String(d.status) : null,
+    p_status_code: Number(d.status_code),
+    p_status_detail: d.status_detail ? String(d.status_detail) : null,
+    p_payload: d
+  });
+  if (error) throw error;
+  if (!applied?.ok || applied.kind !== 'admin_payout') throw new Error(applied?.error || 'Could not reconcile this admin payout.');
+  return res.json({ ok: true, status_code: d.status_code, status: d.status });
+}
+
+async function getGatewayOverview(res) {
+  if (!mgmBridgeConfigured()) return res.status(503).json({ error: 'MGM bridge is not configured on the app server.' });
+  const [balance, payouts] = await Promise.all([
+    callMgmBridge('balance'),
+    supabaseAdmin.from('gateway_admin_payouts').select('*').order('created_at', { ascending: false }).limit(30)
+  ]);
+  if (payouts.error) throw payouts.error;
+  return res.json({ balance: balance.data || {}, payouts: payouts.data || [] });
+}
+
+async function createGatewayAdminPayout(req, admin, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  if (!mgmBridgeConfigured()) return res.status(503).json({ error: 'MGM bridge is not configured on the app server.' });
+  const { amount, bank_code, account_number, account_name } = req.body || {};
+  const payoutAmount = Math.round(Number(amount) * 100) / 100;
+  if (!Number.isFinite(payoutAmount) || payoutAmount <= 0) return res.status(400).json({ error: 'Enter a valid payout amount.' });
+  if (!validNgnBankCode(bank_code)) return res.status(400).json({ error: 'Select a supported MGM Pay bank.' });
+  if (!/^\d{10}$/.test(String(account_number || ''))) return res.status(400).json({ error: 'Account number must be 10 digits.' });
+  if (!String(account_name || '').trim()) return res.status(400).json({ error: 'Account name is required.' });
+
+  const balanceResult = await callMgmBridge('balance');
+  const available = Number(balanceResult.data?.available_balance);
+  if (!Number.isFinite(available)) return res.status(502).json({ error: 'MGM Pay did not return an available balance.' });
+  if (payoutAmount > available) return res.status(400).json({ error: `Requested payout exceeds gateway available balance (${available.toLocaleString()} NGN).` });
+
+  const bankName = Object.entries(MGM_NG_BANKS).find(([, code]) => String(code) === String(bank_code))?.[0];
+  const orderId = `apm_admin_${Date.now()}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+  const { data: record, error: insertError } = await supabaseAdmin.from('gateway_admin_payouts').insert({
+    admin_user_id: admin.id,
+    order_id: orderId,
+    amount: payoutAmount,
+    currency: 'NGN',
+    bank_name: bankName,
+    bank_code: String(bank_code),
+    account_number: String(account_number),
+    account_name: String(account_name).trim().slice(0, 100),
+    status: 'pending',
+    gateway_status: 'SUBMITTING'
+  }).select().single();
+  if (insertError) throw insertError;
+
+  try {
+    const result = await callMgmBridge('create_withdrawal', {
+      order_id: orderId, amount: ngnAmount(payoutAmount),
+      payee: { name: record.account_name, account: record.account_number, account_type: 'BANK', bank_code: record.bank_code }
+    });
+    const d = result.data || {};
+    const { error } = await supabaseAdmin.from('gateway_admin_payouts').update({
+      settlement_id: d.settlement_id || null,
+      gateway_status: d.status || 'SUBMITTED',
+      gateway_status_code: Number.isInteger(Number(d.status_code)) ? Number(d.status_code) : null,
+      gateway_status_detail: d.status_detail || null,
+      gateway_payload: d,
+      updated_at: new Date().toISOString()
+    }).eq('id', record.id);
+    if (error) throw error;
+    return res.status(201).json({ ok: true, payout: { ...record, gateway_status: d.status || 'SUBMITTED' } });
+  } catch (error) {
+    await supabaseAdmin.from('gateway_admin_payouts').update({
+      status: error.definite ? 'rejected' : 'pending',
+      gateway_status: error.definite ? 'REJECTED' : 'SUBMISSION_UNKNOWN',
+      gateway_status_detail: String(error.message || 'Payout submission outcome unknown').slice(0, 500),
+      updated_at: new Date().toISOString(),
+      ...(error.definite ? { processed_at: new Date().toISOString() } : {})
+    }).eq('id', record.id).eq('status', 'pending');
+    if (error.definite) return res.status(502).json({ error: `MGM Pay rejected the payout request: ${error.message}` });
+    return res.status(202).json({ ok: true, payout: { id: record.id, order_id: orderId, gateway_status: 'SUBMISSION_UNKNOWN' },
+      message: 'The payout submission is uncertain. Reconcile this order before retrying; do not send it again.' });
+  }
 }
 
 // ============ USERS ============

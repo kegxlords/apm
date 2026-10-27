@@ -2,6 +2,9 @@ import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, getProfile } from '../lib/auth.js';
 import { getSetting } from '../lib/rewards.js';
 import { ensureTierActive, getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
+import { randomUUID } from 'node:crypto';
+import { callMgmBridge, mgmBridgeConfigured, ngnAmount, validNgnBankCode } from '../lib/mgm-bridge.js';
+import { submitMemberWithdrawalToGateway } from '../lib/mgm-operations.js';
 
 const todayUTC = () => new Date().toISOString().slice(0, 10);
 
@@ -29,7 +32,7 @@ export default async function handler(req, res) {
 
 async function getDepositDetails(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
-  const keys = ['deposit_bank_name', 'deposit_account_number', 'deposit_account_name', 'min_deposit'];
+  const keys = ['deposit_bank_name', 'deposit_account_number', 'deposit_account_name', 'min_deposit', 'deposit_mode'];
   const { data, error } = await supabaseAdmin.from('site_settings').select('key, value').in('key', keys);
   if (error) throw error;
 
@@ -44,7 +47,8 @@ async function getDepositDetails(req, res) {
     account_number: accountNumber,
     account_name: accountName,
     min_deposit: Number.isFinite(configuredMinimum) && configuredMinimum > 0 ? configuredMinimum : 6000,
-    configured: Boolean(bankName && accountNumber && accountName)
+    configured: Boolean(bankName && accountNumber && accountName),
+    deposit_mode: String(settings.deposit_mode || 'manual').toLowerCase() === 'gateway' ? 'gateway' : 'manual'
   });
 }
 
@@ -57,9 +61,58 @@ async function createDeposit(req, user, res) {
   if (profile?.is_frozen) return res.status(403).json({ error: 'Account frozen' });
 
   const { amount, sender_name, payment_method, proof_ref } = req.body || {};
-  const num = Number(amount);
+  const num = Math.round(Number(amount) * 100) / 100;
   const min = Number(await getSetting('min_deposit', '6000'));
-  if (!num || num < min) return res.status(400).json({ error: `Minimum deposit is ₦${min.toLocaleString()}` });
+  if (!Number.isFinite(num) || num <= 0 || num < min) return res.status(400).json({ error: `Minimum deposit is ₦${min.toLocaleString()}` });
+  const depositMode = String(await getSetting('deposit_mode', 'manual')).toLowerCase();
+
+  if (depositMode === 'gateway') {
+    if (!mgmBridgeConfigured()) return res.status(503).json({ error: 'Online deposits are not configured yet. Please contact support.' });
+    const orderId = `apm_dep_${Date.now()}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    const { data: deposit, error: insertError } = await supabaseAdmin.from('deposits').insert({
+      user_id: user.id,
+      amount: Math.round(num * 100) / 100,
+      sender_name: 'MGM Pay',
+      payment_method: 'mgm_pay',
+      proof_ref: null,
+      status: 'pending',
+      gateway_provider: 'mgm_pay',
+      gateway_order_id: orderId,
+      gateway_status: 'SUBMITTING'
+    }).select().single();
+    if (insertError) throw insertError;
+
+    try {
+      const result = await callMgmBridge('create_deposit', { order_id: orderId, amount: ngnAmount(Math.round(num * 100) / 100) });
+      const providerData = result.data || {};
+      let redirectUrl;
+      try { redirectUrl = new URL(providerData.redirect_url); }
+      catch { throw new Error('MGM Pay did not return a valid cashier URL'); }
+      if (redirectUrl.protocol !== 'https:') throw new Error('MGM Pay cashier URL must use HTTPS');
+      const { error: updateError } = await supabaseAdmin.from('deposits').update({
+        gateway_payment_id: providerData.payment_id || null,
+        gateway_redirect_url: redirectUrl.toString(),
+        gateway_status: providerData.status || 'APPLY',
+        gateway_status_code: Number.isInteger(Number(providerData.status_code)) ? Number(providerData.status_code) : null,
+        gateway_status_detail: providerData.status_detail || null,
+        gateway_payload: providerData,
+        updated_at: new Date().toISOString()
+      }).eq('id', deposit.id).eq('status', 'pending').eq('gateway_status', 'SUBMITTING');
+      if (updateError) throw updateError;
+      return res.status(201).json({ ok: true, deposit: { id: deposit.id, order_id: orderId }, redirect_url: redirectUrl.toString() });
+    } catch (error) {
+      await supabaseAdmin.from('deposits').update({
+        gateway_status: error.definite ? 'CREATE_FAILED' : 'SUBMISSION_UNKNOWN',
+        gateway_status_detail: String(error.message || 'Gateway order result unknown').slice(0, 500),
+        updated_at: new Date().toISOString(),
+        ...(error.definite ? { status: 'rejected' } : {})
+      }).eq('id', deposit.id).eq('status', 'pending');
+      if (error.definite) return res.status(502).json({ error: `Gateway declined the deposit request: ${error.message}` });
+      return res.status(202).json({ ok: true, pending_confirmation: true, order_id: orderId,
+        message: 'The gateway response is not confirmed yet. Do not submit another payment for this order; contact support if no cashier page appears.' });
+    }
+  }
+
   if (!sender_name) return res.status(400).json({ error: 'Sender name is required' });
 
   const { data, error } = await supabaseAdmin.from('deposits').insert({
@@ -84,23 +137,25 @@ async function checkWithdrawalEligibility(user) {
 
   const min = Number(await getSetting('min_withdrawal', '1000'));
   const fee = Number(await getSetting('withdrawal_fee_percentage', '0'));
+  const payoutMode = String(await getSetting('withdrawal_mode', 'manual')).toLowerCase() === 'gateway' ? 'gateway' : 'manual';
+  const reviewRequired = String(await getSetting('gateway_withdrawal_review', 'true')).toLowerCase() !== 'false';
 
-  if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee };
+  if (profile.is_frozen) return { can_withdraw_now: false, reason_blocked: 'Account frozen. Contact support.', min, fee, payout_mode: payoutMode, review_required: reviewRequired };
   // Weekend restriction removed to allow withdrawals everyday
   const { count: purchasedMachines, error: machineError } = await supabaseAdmin.from('wealth_investments')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id);
   if (machineError) throw machineError;
-  if (!purchasedMachines) return { can_withdraw_now: false, reason_blocked: 'You need to purchase at least one Mining Machine before withdrawing.', min, fee };
+  if (!purchasedMachines) return { can_withdraw_now: false, reason_blocked: 'You need to purchase at least one Mining Machine before withdrawing.', min, fee, payout_mode: payoutMode, review_required: reviewRequired };
 
   const { count } = await supabaseAdmin.from('withdrawals')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', user.id)
     .gte('created_at', `${todayUTC()}T00:00:00.000Z`);
 
-  if (count > 0) return { can_withdraw_now: false, reason_blocked: 'You already requested a withdrawal today. Limit is 1 per day.', min, fee };
+  if (count > 0) return { can_withdraw_now: false, reason_blocked: 'You already requested a withdrawal today. Limit is 1 per day.', min, fee, payout_mode: payoutMode, review_required: reviewRequired };
 
-  return { can_withdraw_now: true, tier: profile.tier, min, fee };
+  return { can_withdraw_now: true, tier: profile.tier, min, fee, payout_mode: payoutMode, review_required: reviewRequired };
 }
 
 async function getWithdrawalEligibility(user, res) {
@@ -116,11 +171,54 @@ async function requestWithdrawal(req, user, res) {
   const elig = await checkWithdrawalEligibility(user);
   if (!elig.can_withdraw_now) return res.status(400).json({ error: elig.reason_blocked });
 
-  const { amount, bank_name, account_number, account_name } = req.body || {};
-  const num = Number(amount);
-  if (!num || num < elig.min) return res.status(400).json({ error: `Minimum withdrawal is ₦${elig.min.toLocaleString()}` });
+  const { amount, bank_name, bank_code, account_number, account_name } = req.body || {};
+  const num = Math.round(Number(amount) * 100) / 100;
+  if (!Number.isFinite(num) || num <= 0 || num < elig.min) return res.status(400).json({ error: `Minimum withdrawal is ₦${elig.min.toLocaleString()}` });
   if (!bank_name || !account_number || !account_name) return res.status(400).json({ error: 'Bank details are required' });
   if (!/^\d{10}$/.test(account_number)) return res.status(400).json({ error: 'Account number must be 10 digits' });
+
+  const withdrawalMode = String(await getSetting('withdrawal_mode', 'manual')).toLowerCase();
+  if (withdrawalMode === 'gateway') {
+    if (!mgmBridgeConfigured()) return res.status(503).json({ error: 'Online withdrawals are not configured yet. Please contact support.' });
+    if (!validNgnBankCode(bank_code)) return res.status(400).json({ error: 'Select a bank supported by MGM Pay.' });
+    if (!Number.isFinite(Number(elig.fee)) || Number(elig.fee) < 0 || Number(elig.fee) >= 100) return res.status(503).json({ error: 'The configured withdrawal fee is invalid for gateway payouts.' });
+    const reviewRequired = String(await getSetting('gateway_withdrawal_review', 'true')).toLowerCase() !== 'false';
+    const gross = Math.round(num * 100) / 100;
+    const fee = Math.round(gross * elig.fee) / 100;
+    const net = Math.round((gross - fee) * 100) / 100;
+    if (net <= 0) return res.status(400).json({ error: 'The withdrawal fee leaves no payout amount. Contact support.' });
+    const orderId = `apm_wd_${Date.now()}_${randomUUID().replaceAll('-', '').slice(0, 12)}`;
+    const { data: withdrawalId, error: withdrawalError } = await supabaseAdmin.rpc('create_mgm_withdrawal_request', {
+      p_user_id: user.id,
+      p_gross_amount: gross,
+      p_net_amount: net,
+      p_bank_name: String(bank_name).slice(0, 80),
+      p_bank_code: String(bank_code),
+      p_account_number: String(account_number),
+      p_account_name: String(account_name).slice(0, 100),
+      p_order_id: orderId,
+      p_gateway_status: reviewRequired ? 'AWAITING_REVIEW' : 'READY_TO_SEND'
+    });
+    if (withdrawalError) {
+      const message = withdrawalError.message || 'Could not create withdrawal';
+      if (message.includes('Insufficient balance')) return res.status(400).json({ error: 'Insufficient balance' });
+      if (message.includes('already requested')) return res.status(400).json({ error: message });
+      throw withdrawalError;
+    }
+    if (reviewRequired) return res.status(201).json({ ok: true, withdrawal: { id: withdrawalId, order_id: orderId },
+      gateway_sent: false, requires_review: true });
+
+    try {
+      const submitted = await submitMemberWithdrawalToGateway(withdrawalId);
+      return res.status(201).json({ ok: true, withdrawal: { id: withdrawalId, order_id: orderId },
+        gateway_sent: true, requires_review: false, gateway_status: submitted.status });
+    } catch (error) {
+      if (error.definite && error.refunded) return res.status(502).json({ error: `Gateway rejected the payout; your balance has been refunded. ${error.message}` });
+      return res.status(202).json({ ok: true, withdrawal: { id: withdrawalId, order_id: orderId },
+        gateway_sent: false, pending_confirmation: true,
+        message: 'Withdrawal is reserved while gateway submission is reconciled. Do not submit it again.' });
+    }
+  }
 
   const { data: wallet } = await supabaseAdmin.from('wallets').select('balance').eq('user_id', user.id).single();
   if (Number(wallet?.balance || 0) < num) return res.status(400).json({ error: 'Insufficient balance' });
