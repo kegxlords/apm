@@ -27,6 +27,7 @@
     <button class="admin-tab" onclick="showSection('tasks', this)"><i class="fa-solid fa-hand-pointer"></i>Tasks</button>
     <button class="admin-tab" onclick="showSection('tiers', this)"><i class="fa-solid fa-crown"></i>Tiers</button>
     <button class="admin-tab" onclick="showSection('wealth', this)"><i class="fa-solid fa-gem"></i>Wealth</button>
+    <button class="admin-tab" onclick="showSection('giftcodes', this)"><i class="fa-solid fa-ticket"></i>Gift Codes</button>
     <button class="admin-tab" onclick="showSection('settings', this)"><i class="fa-solid fa-gear"></i>Settings</button>
   </nav>
 
@@ -169,6 +170,32 @@
         <thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Ends</th><th>Status</th></tr></thead>
         <tbody id="inv-table"></tbody>
       </table></div>
+    </section>
+
+    <!-- GIFT CODES -->
+    <section id="giftcodes" class="section">
+      <h2 class="section-title"><i class="fa-solid fa-ticket"></i>Gift Codes</h2>
+      <div class="notice mint"><i class="fa-solid fa-circle-info"></i>Generate one reusable code and share it with users. Each user can redeem that code once, and every successful redemption receives a separately randomized amount within the code’s saved range.</div>
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-bottom:14px;font-size:1rem;">Random amount range (₦)</h3>
+        <div class="grid-form">
+          <div class="form-group"><label class="form-label">Minimum amount</label><input type="number" min="1" step="1" class="input" id="gift-min" value="100"></div>
+          <div class="form-group"><label class="form-label">Maximum amount</label><input type="number" min="1" step="1" class="input" id="gift-max" value="1000"></div>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveGiftRange()"><i class="fa-solid fa-save"></i> Save amount range</button>
+      </div>
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="margin-bottom:8px;font-size:1rem;">Generate one reusable gift code</h3>
+        <p class="muted" style="font-size:.8rem;margin-bottom:14px;">Save the amount range first. The same code can be shared; each account gets its own random credit, once.</p>
+        <button class="btn btn-gold btn-sm" onclick="generateGiftCodes()"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate one code</button>
+        <div id="gift-generated-wrap" style="display:none;margin-top:16px;">
+          <label class="form-label">New reusable code — copy and distribute securely</label>
+          <textarea id="gift-generated" class="input" rows="8" readonly style="font-family:monospace;white-space:pre;overflow:auto;"></textarea>
+          <button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="copyGiftCodes()"><i class="fa-solid fa-copy"></i> Copy codes</button>
+        </div>
+      </div>
+      <h3 class="section-title" style="font-size:1rem;">Recent codes</h3>
+      <div class="table-wrap"><table><thead><tr><th>Code ending</th><th>Amount range</th><th>Status</th><th>Redeemers</th><th>Total credited</th><th>Created</th></tr></thead><tbody id="gift-codes-table"></tbody></table></div>
     </section>
 
     <!-- SETTINGS -->
@@ -356,9 +383,9 @@
       document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
       document.getElementById(id).classList.add('active');
       btn.classList.add('active');
-      ({ dashboard: loadDashboard, gateway: loadGateway, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, settings: loadSettings })[id]?.();
+      ({ dashboard: loadDashboard, gateway: loadGateway, deposits: loadDeposits, withdrawals: loadWithdrawals, users: loadUsers, tasks: loadTasks, tiers: loadTiers, wealth: loadWealth, giftcodes: window.loadGiftCodes, settings: loadSettings })[id]?.();
     };
-    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
+    const badge = s => `<span class="badge ${s === 'completed' || s === 'approved' || s === 'active' || s === 'available' ? 'badge-mint' : s === 'pending' ? 'badge-amber' : 'badge-red'}">${s}</span>`;
 
     // ===== DASHBOARD =====
     async function loadDashboard() {
@@ -415,6 +442,51 @@
         showToast(`MGM Pay status: ${result.status || 'updated'} (${result.status_code})`, 'success');
         await loadGateway();
       } catch (e) { showToast(e.message, 'error'); }
+    };
+
+    window.loadGiftCodes = async () => {
+      try {
+        const result = await api('get-gift-codes');
+        document.getElementById('gift-min').value = result.range.min;
+        document.getElementById('gift-max').value = result.range.max;
+        const codes = result.codes || [];
+        document.getElementById('gift-codes-table').innerHTML = codes.length ? codes.map(c => `
+          <tr><td><code>…${c.code_last4}</code></td><td class="gold">${money(c.min_amount)}–${money(c.max_amount)}</td><td>${badge(c.status)}</td>
+          <td>${Number(c.redeemers || 0).toLocaleString()}</td><td class="mint">${money(c.total_credited || 0)}</td>
+          <td style="font-size:.75rem;">${new Date(c.created_at).toLocaleString()}</td></tr>`).join('')
+          : '<tr><td colspan="6" style="text-align:center;padding:24px;" class="muted">No gift codes created yet</td></tr>';
+      } catch (e) {
+        document.getElementById('gift-codes-table').innerHTML = `<tr><td colspan="6" style="text-align:center;padding:24px;" class="muted">${e.message}</td></tr>`;
+      }
+    };
+    window.saveGiftRange = async () => {
+      try {
+        const result = await api('save-gift-code-range', { method: 'POST', body: JSON.stringify({
+          min: Number(document.getElementById('gift-min').value),
+          max: Number(document.getElementById('gift-max').value)
+        })});
+        showToast(`Gift amount range saved: ${money(result.range.min)}–${money(result.range.max)}`, 'success');
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.generateGiftCodes = async () => {
+      if (!confirm('Generate one reusable gift code using the saved random amount range?')) return;
+      try {
+        const result = await api('generate-gift-codes', { method: 'POST', body: JSON.stringify({}) });
+        document.getElementById('gift-generated').value = `${result.code}\nRandom credit per user: ${money(result.range.min)}–${money(result.range.max)}`;
+        document.getElementById('gift-generated-wrap').style.display = 'block';
+        showToast('Reusable gift code generated. Copy and save it now; the full code cannot be shown again.', 'success');
+        await loadGiftCodes();
+      } catch (e) { showToast(e.message, 'error'); }
+    };
+    window.copyGiftCodes = async () => {
+      const field = document.getElementById('gift-generated');
+      try {
+        await navigator.clipboard.writeText(field.value);
+        showToast('Gift codes copied.', 'success');
+      } catch {
+        field.focus(); field.select();
+        showToast(document.execCommand('copy') ? 'Gift codes copied.' : 'Select and copy the codes manually.', 'success');
+      }
     };
 
     // ===== DEPOSITS =====
@@ -493,10 +565,10 @@
           <td style="font-size:.82rem;">${u.email}</td>
           <td>${u.full_name || '—'}</td>
           <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span><div class="muted" style="font-size:.68rem;">${u.tier_expires_at ? 'exp ' + new Date(u.tier_expires_at).toLocaleDateString() : (u.tier !== 'A0' ? 'lifetime' : '')}</div></td>
-          <td class="mint" style="font-weight:700;">${money(u.wallet_balance || 0)}</td>
+          <td class="mint" style="font-weight:700;">${money(u.wallets?.[0]?.balance || 0)}</td>
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallet_balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
+            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
             <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
