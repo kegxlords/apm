@@ -317,8 +317,14 @@ async function getUsers(req, res) {
     .select('id, email, full_name, tier, tier_expires_at, is_frozen, created_at, wallets!left(balance)')
     .order('created_at', { ascending: false }).limit(200);
   if (search) q = q.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
-  const { data } = await q;
-  return res.json({ users: data || [] });
+  const { data, error } = await q;
+  if (error) throw error;
+  const users = (data || []).map((user) => {
+    const wallet = Array.isArray(user.wallets) ? user.wallets[0] : user.wallets;
+    const balance = Number(wallet?.balance ?? 0);
+    return { ...user, wallet_balance: Number.isFinite(balance) ? balance : 0 };
+  });
+  return res.json({ users });
 }
 
 async function updateUser(req, res) {
