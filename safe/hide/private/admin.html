@@ -493,10 +493,10 @@
           <td style="font-size:.82rem;">${u.email}</td>
           <td>${u.full_name || '—'}</td>
           <td><span class="badge ${u.tier !== 'A0' ? 'badge-gold' : 'badge-gray'}">${u.tier}</span><div class="muted" style="font-size:.68rem;">${u.tier_expires_at ? 'exp ' + new Date(u.tier_expires_at).toLocaleDateString() : (u.tier !== 'A0' ? 'lifetime' : '')}</div></td>
-          <td class="mint" style="font-weight:700;">${money(u.wallets?.[0]?.balance || 0)}</td>
+          <td class="mint" style="font-weight:700;">${money(u.wallet_balance || 0)}</td>
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
-            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
+            <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallet_balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
             <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
