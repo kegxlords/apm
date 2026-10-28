@@ -2,7 +2,7 @@ import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, getProfile } from '../lib/auth.js';
 import { getSetting } from '../lib/rewards.js';
 import { ensureTierActive, getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { callMgmBridge, mgmBridgeConfigured, ngnAmount, validNgnBankCode } from '../lib/mgm-bridge.js';
 import { submitMemberWithdrawalToGateway } from '../lib/mgm-operations.js';
 
@@ -17,6 +17,7 @@ export default async function handler(req, res) {
     switch (action) {
       case 'getDepositDetails': return await getDepositDetails(req, res);
       case 'createDeposit': return await createDeposit(req, user, res);
+      case 'redeemGiftCode': return await redeemGiftCode(req, user, res);
       case 'getWithdrawalEligibility': return await getWithdrawalEligibility(user, res);
       case 'requestWithdrawal': return await requestWithdrawal(req, user, res);
       case 'upgradeTier': return await upgradeTier(req, user, res);
@@ -126,6 +127,37 @@ async function createDeposit(req, user, res) {
 
   if (error) return res.status(500).json({ error: error.message });
   return res.status(201).json({ ok: true, deposit: data });
+}
+
+async function redeemGiftCode(req, user, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const profile = await getProfile(user.id);
+  if (profile?.is_frozen) return res.status(403).json({ error: 'Account frozen. Contact support.' });
+
+  const normalized = String(req.body?.code || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!/^3M[0-9A-F]{16}$/.test(normalized)) {
+    return res.status(400).json({ error: 'Enter a valid 3M gift code.' });
+  }
+  const codeHash = createHash('sha256').update(normalized, 'utf8').digest('hex');
+  const { data: giftCode, error: lookupError } = await supabaseAdmin.from('gift_codes')
+    .select('min_amount, max_amount, status').eq('code_hash', codeHash).maybeSingle();
+  if (lookupError) throw lookupError;
+  if (!giftCode || giftCode.status !== 'available') {
+    return res.status(400).json({ error: 'This gift code is invalid or unavailable.' });
+  }
+  const minAmount = Number(giftCode.min_amount), maxAmount = Number(giftCode.max_amount);
+  if (!Number.isSafeInteger(minAmount) || !Number.isSafeInteger(maxAmount) || minAmount < 1 || maxAmount < minAmount) {
+    return res.status(503).json({ error: 'This gift code has an invalid amount range. Contact support.' });
+  }
+  const randomAmount = randomInt(minAmount, maxAmount + 1);
+  const { data, error } = await supabaseAdmin.rpc('redeem_gift_code', {
+    p_code_hash: codeHash,
+    p_user_id: user.id,
+    p_amount: randomAmount
+  });
+  if (error) throw error;
+  if (!data?.ok) return res.status(400).json({ error: data?.error || 'This gift code is invalid or has already been redeemed.' });
+  return res.json({ ok: true, amount: Number(data.amount), balance: Number(data.balance) });
 }
 
 // ==========================================
