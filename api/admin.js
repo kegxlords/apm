@@ -2,7 +2,7 @@ import supabaseAdmin from '../lib/supabase.js';
 import { verifyUser, isAdmin } from '../lib/auth.js';
 import { payReferralCommission, getSetting } from '../lib/rewards.js';
 import { getTierConfig, tierExpiryFromNow } from '../lib/tiers.js';
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, createHash } from 'node:crypto';
 import { callMgmBridge, mgmBridgeConfigured, ngnAmount, validNgnBankCode, MGM_NG_BANKS } from '../lib/mgm-bridge.js';
 import { submitMemberWithdrawalToGateway } from '../lib/mgm-operations.js';
 
@@ -36,6 +36,9 @@ export default async function handler(req, res) {
       case 'send-message': return await sendMessage(req, res);
       case 'get-settings': return await getSettings(res);
       case 'save-settings': return await saveSettings(req, res);
+      case 'get-gift-codes': return await getGiftCodes(res);
+      case 'save-gift-code-range': return await saveGiftCodeRange(req, res);
+      case 'generate-gift-codes': return await generateGiftCodes(req, user, res);
       case 'get-gateway-overview': return await getGatewayOverview(res);
       case 'create-gateway-admin-payout': return await createGatewayAdminPayout(req, user, res);
       case 'reconcile-gateway-admin-payout': return await reconcileGatewayAdminPayout(req, res);
@@ -317,14 +320,8 @@ async function getUsers(req, res) {
     .select('id, email, full_name, tier, tier_expires_at, is_frozen, created_at, wallets!left(balance)')
     .order('created_at', { ascending: false }).limit(200);
   if (search) q = q.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
-  const { data, error } = await q;
-  if (error) throw error;
-  const users = (data || []).map((user) => {
-    const wallet = Array.isArray(user.wallets) ? user.wallets[0] : user.wallets;
-    const balance = Number(wallet?.balance ?? 0);
-    return { ...user, wallet_balance: Number.isFinite(balance) ? balance : 0 };
-  });
-  return res.json({ users });
+  const { data } = await q;
+  return res.json({ users: data || [] });
 }
 
 async function updateUser(req, res) {
@@ -526,4 +523,84 @@ async function saveSettings(req, res) {
     if (error) return res.status(500).json({ error: `Could not save ${key}: ${error.message}` });
   }
   return res.json({ ok: true });
+}
+
+const DEFAULT_GIFT_RANGE = { min: 100, max: 1000 };
+async function getGiftAmountRange() {
+  const { data, error } = await supabaseAdmin.from('site_settings').select('value').eq('key', 'gift_code_amount_range').maybeSingle();
+  if (error) throw error;
+  try {
+    const parsed = typeof data?.value === 'string' ? JSON.parse(data.value) : data?.value;
+    const min = Number(parsed?.min), max = Number(parsed?.max);
+    if (Number.isSafeInteger(min) && Number.isSafeInteger(max) && min >= 1 && max >= min && max <= 100000000) return { min, max };
+  } catch {}
+  return DEFAULT_GIFT_RANGE;
+}
+
+async function getGiftCodes(res) {
+  const [range, codesResult] = await Promise.all([
+    getGiftAmountRange(),
+    supabaseAdmin.from('gift_codes')
+      .select('id, code_last4, min_amount, max_amount, status, created_at')
+      .order('created_at', { ascending: false }).limit(100)
+  ]);
+  if (codesResult.error) throw codesResult.error;
+  const codes = codesResult.data || [];
+  const ids = codes.map(code => code.id);
+  let redemptions = [];
+  if (ids.length) {
+    const { data, error } = await supabaseAdmin.from('gift_code_redemptions')
+      .select('gift_code_id, amount').in('gift_code_id', ids);
+    if (error) throw error;
+    redemptions = data || [];
+  }
+  const stats = new Map();
+  for (const redemption of redemptions) {
+    const current = stats.get(redemption.gift_code_id) || { redeemers: 0, total_credited: 0 };
+    current.redeemers += 1;
+    current.total_credited += Number(redemption.amount || 0);
+    stats.set(redemption.gift_code_id, current);
+  }
+  return res.json({ range, codes: codes.map(code => ({
+    ...code,
+    redeemers: stats.get(code.id)?.redeemers || 0,
+    total_credited: stats.get(code.id)?.total_credited || 0
+  })) });
+}
+
+async function saveGiftCodeRange(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const min = Number(req.body?.min), max = Number(req.body?.max);
+  if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max) || min < 1 || max < min || max > 100000000) {
+    return res.status(400).json({ error: 'Enter whole-naira amounts: minimum at least ₦1, maximum no lower than minimum, and maximum no more than ₦100,000,000.' });
+  }
+  const range = { min, max };
+  const { error } = await supabaseAdmin.from('site_settings').upsert({
+    key: 'gift_code_amount_range', value: JSON.stringify(range)
+  });
+  if (error) throw error;
+  return res.json({ ok: true, range });
+}
+
+async function generateGiftCodes(req, admin, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  const range = await getGiftAmountRange();
+  const batchId = randomUUID();
+  const raw = randomBytes(8).toString('hex').toUpperCase();
+  const code = `3M-${raw.slice(0, 8)}-${raw.slice(8)}`;
+  const normalized = code.replace(/[^A-Z0-9]/g, '');
+  const codeHash = createHash('sha256').update(normalized, 'utf8').digest('hex');
+  const { error } = await supabaseAdmin.from('gift_codes').insert({
+    code_hash: codeHash,
+    code_last4: raw.slice(-4),
+    amount: range.min,
+    min_amount: range.min,
+    max_amount: range.max,
+    batch_id: batchId,
+    created_by: admin.id,
+    status: 'available'
+  });
+  if (error) throw error;
+  res.setHeader('Cache-Control', 'no-store, private');
+  return res.status(201).json({ ok: true, code, range });
 }
