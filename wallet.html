@@ -36,6 +36,15 @@
       <div class="stat-card"><div class="stat-value" style="color:var(--danger);" id="total-out">₦0</div><div class="stat-label">Total Out</div></div>
     </div>
 
+    <div class="card" style="margin:18px 0;">
+      <h2 style="font-size:1rem;margin-bottom:8px;"><i class="fa-solid fa-ticket" style="color:var(--primary);"></i> Redeem a Gift Code</h2>
+      <p class="muted" style="font-size:.82rem;margin-bottom:14px;">Enter a shared gift code to receive a random wallet credit. Each account can redeem each code once; different members may receive different amounts.</p>
+      <form id="gift-code-form">
+        <div class="form-group"><label class="form-label" for="gift-code-input">Gift code</label><input class="input" id="gift-code-input" name="code" placeholder="3M-XXXXXXXX-XXXXXXXX" autocomplete="off" autocapitalize="characters" required></div>
+        <button class="btn btn-primary btn-block" id="gift-code-submit" type="submit"><i class="fa-solid fa-gift"></i> Redeem code</button>
+      </form>
+    </div>
+
     <div class="section-title"><i class="fa-solid fa-receipt"></i> Transaction History</div>
     <div class="card" id="txn-list"><div class="empty-state"><i class="fa-solid fa-circle-notch spinner"></i>Loading...</div></div>
   </div>
@@ -60,9 +69,10 @@
       mining_machine_purchase: ['fa-solid fa-industry', 'rgba(255,176,32,.15)', 'var(--warning)'],
       membership_upgrade:  ['fa-solid fa-crown',        'var(--gold-dim)', 'var(--gold)'],
       admin_credit:        ['fa-solid fa-user-shield',  'var(--primary-dim)', 'var(--primary)'],
-      admin_debit:         ['fa-solid fa-user-shield',  'rgba(255,90,90,.15)', 'var(--danger)']
+      admin_debit:         ['fa-solid fa-user-shield',  'rgba(255,90,90,.15)', 'var(--danger)'],
+      gift_code:           ['fa-solid fa-ticket',       'var(--primary-dim)', 'var(--primary)']
     };
-    const IN_TYPES = ['task_claim', 'deposit', 'referral_commission', 'wealth_return', 'daily_login_reward', 'mining_machine_capital_return', 'mining_machine_profit', 'admin_credit'];
+    const IN_TYPES = ['task_claim', 'deposit', 'referral_commission', 'wealth_return', 'daily_login_reward', 'mining_machine_capital_return', 'mining_machine_profit', 'admin_credit', 'gift_code'];
     const OUT_TYPES = ['withdrawal', 'membership_upgrade', 'wealth_invest', 'mining_machine_purchase', 'admin_debit'];
 
     const [walletR, txnR] = await Promise.all([
@@ -100,6 +110,31 @@
           </div>`;
       }).join('');
     }
+
+    document.getElementById('gift-code-form').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = document.getElementById('gift-code-submit');
+      const code = document.getElementById('gift-code-input').value.trim();
+      button.disabled = true;
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        const response = await fetch('/api/finance?action=redeemGiftCode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+          body: JSON.stringify({ code })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Could not redeem this gift code.');
+        document.getElementById('balance').textContent = `₦${Number(result.balance).toLocaleString()}`;
+        document.getElementById('gift-code-input').value = '';
+        showToast(`Gift code redeemed: ₦${Number(result.amount).toLocaleString()} added to your wallet.`, 'success');
+        setTimeout(() => location.reload(), 800);
+      } catch (error) {
+        showToast(error.message || 'Could not redeem this gift code.', 'error');
+      } finally {
+        button.disabled = false;
+      }
+    });
   </script>
 </body>
 </html>
