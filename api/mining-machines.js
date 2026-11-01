@@ -4,6 +4,9 @@ import { verifyUser, getProfile } from '../lib/auth.js';
 const money = (value) => Math.round(Number(value || 0) * 100) / 100;
 const today = () => new Date().toISOString().slice(0, 10);
 const purchaseLimit = (pkg) => [2, 5, 10, 365].includes(Number(pkg.duration_days)) ? 1 : 2;
+const isDailyIncomeMachine = (pkg) => Number(pkg?.duration_days) === 365
+  && ((Number(pkg?.investment_amount) === 50000 && Number(pkg?.daily_return) === 1500)
+    || (Number(pkg?.investment_amount) === 40000 && Number(pkg?.daily_return) === 800));
 
 export default async function handler(req, res) {
   try {
@@ -161,15 +164,16 @@ async function processDailyMachinePayouts() {
     .from('wealth_investments')
     .select('id, user_id, amount, created_at, purchased_at, total_earned, status, wealth_packages!inner(name, investment_amount, daily_return, duration_days)')
     .eq('status', 'active')
-    .eq('wealth_packages.investment_amount', 50000)
-    .eq('wealth_packages.daily_return', 1500)
     .eq('wealth_packages.duration_days', 365);
+  if (error) throw error;
+  const dailyMachines = (machines || []).filter((machine) => isDailyIncomeMachine(machine.wealth_packages));
+  
   if (error) throw error;
 
   let users = 0;
   let payouts = 0;
   let amount = 0;
-  for (const machine of machines || []) {
+  for (const machine of dailyMachines) {
     const pkg = machine.wealth_packages;
     const purchasedAt = new Date(machine.purchased_at || machine.created_at).getTime();
     if (!Number.isFinite(purchasedAt)) continue;
