@@ -42,6 +42,31 @@ function navHTML() {
       ${item('/profile.html', 'fa-solid fa-user', 'Profile')}
     </nav>`;
 }
+
+function renderImpersonationBanner() {
+  if (!sessionStorage.getItem('apm_impersonator_session')) return;
+  const banner = document.createElement('div');
+  banner.id = 'apm-impersonation-banner';
+  banner.style.cssText = 'position:fixed;z-index:9999;top:0;left:0;right:0;padding:10px 16px;background:#7c2d12;color:#fff;display:flex;align-items:center;justify-content:center;gap:12px;font:700 13px/1.3 Inter,system-ui,sans-serif;box-shadow:0 2px 12px rgba(0,0,0,.25)';
+  banner.innerHTML = '<span><i class="fa-solid fa-user-secret"></i> You are viewing this account as an administrator.</span><button id="apm-return-admin" style="border:1px solid rgba(255,255,255,.7);border-radius:6px;background:transparent;color:#fff;padding:6px 10px;font-weight:700;cursor:pointer">Return to admin</button>';
+  document.body.prepend(banner);
+  document.body.style.paddingTop = '44px';
+  document.getElementById('apm-return-admin').addEventListener('click', async () => {
+    const raw = sessionStorage.getItem('apm_impersonator_session');
+    try {
+      const session = JSON.parse(raw || '{}');
+      if (!session.access_token || !session.refresh_token) throw new Error('Saved admin session is unavailable');
+      await supabase.auth.setSession({ access_token: session.access_token, refresh_token: session.refresh_token });
+      sessionStorage.removeItem('apm_impersonator_session');
+      sessionStorage.removeItem('apm_impersonator_admin_email');
+      window.location.assign('/safe/hide/private/admin.html');
+    } catch (error) {
+      console.error('[APM] Could not restore admin session:', error);
+      alert('The saved admin session has expired. Please sign in again.');
+    }
+  });
+}
+
 async function refreshShell() {
   const tierEl = document.getElementById('shell-tier');
   const balEl = document.getElementById('shell-balance');
@@ -73,6 +98,7 @@ function init() {
   const footer = document.getElementById('footer-container');
   if (header) header.outerHTML = headerHTML();
   if (footer) footer.outerHTML = navHTML();
+  renderImpersonationBanner();
   refreshShell();
   supabase.auth.onAuthStateChange(() => refreshShell());
 }
