@@ -22,6 +22,7 @@ export default async function handler(req, res) {
       case 'get-withdrawals': return await getWithdrawals(req, res);
       case 'process-withdrawal': return await processWithdrawal(req, res);
       case 'get-users': return await getUsers(req, res);
+      case 'impersonate-user': return await impersonateUser(req, user, res);
       case 'update-user': return await updateUser(req, res);
       case 'adjust-balance': return await adjustBalance(req, res);
       case 'get-tasks': return await getTasks(res);
@@ -322,6 +323,38 @@ async function getUsers(req, res) {
   if (search) q = q.or(`email.ilike.%${search}%,full_name.ilike.%${search}%`);
   const { data } = await q;
   return res.json({ users: data || [] });
+}
+
+async function impersonateUser(req, admin, res) {
+  const { user_id } = req.body || {};
+  if (!user_id) return res.status(400).json({ error: 'User is required' });
+  if (user_id === admin.id) return res.status(400).json({ error: 'You are already signed in as this user' });
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('id, email, is_admin, is_frozen')
+    .eq('id', user_id)
+    .single();
+  if (profileError || !profile?.email) return res.status(404).json({ error: 'User not found' });
+  if (profile.is_admin) return res.status(403).json({ error: 'Impersonating another admin is not allowed' });
+  if (profile.is_frozen) return res.status(403).json({ error: 'Frozen accounts cannot be impersonated' });
+
+  const forwardedProto = req.headers['x-forwarded-proto'] || 'https';
+  const forwardedHost = req.headers['x-forwarded-host'] || req.headers.host;
+  if (!forwardedHost) return res.status(500).json({ error: 'Could not determine application URL' });
+  const redirectTo = `${forwardedProto}://${forwardedHost}/dashboard.html?impersonating=1`;
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: profile.email,
+    options: { redirectTo }
+  });
+  if (error || !data?.properties?.action_link) {
+    console.error('[APM-ADMIN] Impersonation link generation failed:', error);
+    return res.status(502).json({ error: error?.message || 'Could not create impersonation link' });
+  }
+
+  console.info('[APM-ADMIN] Impersonation link generated', { admin_id: admin.id, user_id });
+  return res.json({ ok: true, action_link: data.properties.action_link, user: { id: profile.id, email: profile.email } });
 }
 
 async function updateUser(req, res) {
