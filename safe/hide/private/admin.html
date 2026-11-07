@@ -569,6 +569,7 @@
           <td>${u.is_frozen ? '<span class="badge badge-red">Frozen</span>' : '<span class="badge badge-mint">Active</span>'}</td>
           <td><div class="action-row">
             <button class="btn btn-primary btn-sm" onclick="openUser('${u.id}','${u.email}',${u.wallets?.[0]?.balance || 0},'${u.tier}',${u.is_frozen})">Manage</button>
+            <button class="btn btn-gold btn-sm" title="Login as this user" onclick="impersonate('${u.id}','${u.email}')"><i class="fa-solid fa-user-secret"></i></button>
             <button class="btn btn-ghost btn-sm" onclick="openMsg('${u.id}','${u.email}')"><i class="fa-solid fa-envelope"></i></button>
           </div></td>
         </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;padding:30px;" class="muted">No users found</td></tr>';
@@ -581,6 +582,17 @@
       document.getElementById('m-expiry').value = '';
       document.getElementById('m-frozen').value = String(frozen);
       document.getElementById('user-modal').classList.add('active');
+    };
+    window.impersonate = async (userId, email) => {
+      if (!confirm(`Login as ${email}? You can return to admin from the banner in the user workspace.`)) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) throw new Error('Admin session expired. Please sign in again.');
+        const result = await api('impersonate-user', { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+        sessionStorage.setItem('apm_impersonator_session', JSON.stringify(session));
+        sessionStorage.setItem('apm_impersonator_admin_email', admin.email || '');
+        window.location.assign(result.action_link);
+      } catch (e) { showToast(e.message, 'error'); }
     };
     window.saveUser = async () => {
       const expiryVal = document.getElementById('m-expiry').value;
